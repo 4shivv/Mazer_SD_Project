@@ -1,0 +1,51 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: ./apps/api
+    command: npm run dev
+    environment:
+      - PORT=4000
+      - OLLAMA_HOST=http://ollama:11434
+      # add DB vars later when we wire Mongo (e.g., MONGO_URL)
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./apps/api:/usr/src/app
+      # keep node_modules inside the container so host mount doesn't wipe it
+      - /usr/src/app/node_modules
+    working_dir: /usr/src/app
+    depends_on:
+      - ollama
+      - mongo
+      - chroma
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  chroma:
+    image: chromadb/chroma:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma
+
+volumes:
+  ollama_data:
+  mongo_data:
+  chroma_data:
