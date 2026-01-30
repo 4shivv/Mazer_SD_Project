@@ -1,0 +1,30 @@
+.field{
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(10,11,16,0.45);
+  color: var(--text);
+  outline: none;
+}
+
+.field::placeholder{ color: rgba(255,255,255,0.45); }
+
+.form{
+  display:flex;
+  flex-direction:column;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.submit{
+  margin: 10px auto 0;
+  padding: 12px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: linear-gradient(180deg, var(--accent2), var(--accent));
+  color: white;
+  font-weight: 700;
+  cursor:pointer;
+  min-width: 140px;
+}

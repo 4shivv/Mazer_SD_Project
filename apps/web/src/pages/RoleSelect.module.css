@@ -1,0 +1,25 @@
+.stack{ display:flex; flex-direction:column; gap: 16px; }
+
+.primary{
+  width:100%;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: linear-gradient(180deg, var(--accent2), var(--accent));
+  color: white;
+  font-weight: 700;
+  font-size: 18px;
+  cursor:pointer;
+}
+
+.primary:active{ transform: translateY(1px); }
+
+.link{
+  background: transparent;
+  border: none;
+  color: var(--text);
+  opacity: 0.9;
+  cursor: pointer;
+  padding-top: 6px;
+}
+.link:hover{ opacity: 1; text-decoration: underline; }
