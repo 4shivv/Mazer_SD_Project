@@ -22,8 +22,11 @@
 
 /* Mobile: slide in/out */
 @media (max-width: 899px){
-  .sidebar{ transform: translateX(-105%); transition: transform 160ms ease; }
-  .open{ transform: translateX(0); }
+  .sidebar{ transform: translateX(-105%); }
+  .sidebar.open{ transform: translateX(0); }
+}
+@media (max-width: 899px) and (prefers-reduced-motion: no-preference){
+  .sidebar{ transition: transform 160ms ease; }
 }
 
 .backdrop{
@@ -32,10 +35,12 @@
   background: rgba(0,0,0,0.55);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 160ms ease;
   z-index: 40;
 }
 .backdropOpen{ opacity: 1; pointer-events: auto; }
+@media (prefers-reduced-motion: no-preference){
+  .backdrop{ transition: opacity 160ms ease; }
+}
 
 .brandRow{
   display:flex;
@@ -50,28 +55,35 @@
 }
 
 .iconBtn{
+  min-width: var(--touch-min, 44px);
+  min-height: var(--touch-min, 44px);
   background: rgba(10,11,16,0.35);
   border: 1px solid rgba(255,255,255,0.10);
   color: var(--text);
   border-radius: 10px;
   padding: 8px 10px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 @media (min-width: 900px){
-  .iconBtn{ display:none; }
+  .iconBtn{ display: none; }
 }
 
 .section{ display:flex; flex-direction:column; gap: 8px; }
 
 .item{
   width: 100%;
-  text-align:left;
+  min-height: var(--touch-min, 44px);
+  padding: 12px 14px;
+  text-align: left;
   background: transparent;
   border: 1px solid transparent;
   color: var(--text);
-  padding: 10px 10px;
+  font-size: 1rem;
   border-radius: 10px;
-  cursor:pointer;
+  cursor: pointer;
 }
 .item:hover{
   background: rgba(255,255,255,0.05);
@@ -91,13 +103,15 @@
 }
 
 .historyItem{
-  text-align:left;
+  min-height: var(--touch-min, 44px);
+  padding: 12px 14px;
+  text-align: left;
   background: rgba(10,11,16,0.20);
   border: 1px solid rgba(255,255,255,0.08);
   color: var(--text);
-  padding: 10px 10px;
+  font-size: 1rem;
   border-radius: 10px;
-  cursor:pointer;
+  cursor: pointer;
 }
 .historyItem:hover{ background: rgba(10,11,16,0.32); }
 
@@ -107,13 +121,14 @@
 }
 .footerItem{
   width: 100%;
-  text-align:left;
+  min-height: var(--touch-min, 44px);
+  padding: 12px 14px;
+  text-align: left;
   background: transparent;
   border: 1px solid transparent;
   color: var(--text);
-  padding: 10px 10px;
+  font-size: 1rem;
   border-radius: 10px;
-  cursor:pointer;
-  opacity: 0.9;
+  cursor: pointer;
 }
-.footerItem:hover{ opacity: 1; background: rgba(255,255,255,0.05); }
+.footerItem:hover{ background: rgba(255,255,255,0.05); }

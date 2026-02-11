@@ -1,12 +1,20 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 import { sendChat } from "../lib/api";
+import { useAuth } from "../app/AuthProvider";
+import * as Auth from "../lib/auth";
 import styles from "./Chat.module.css";
 
 type Msg = { role: "user" | "assistant"; text: string };
 
 export default function Chat() {
+  const navigate = useNavigate();
+  const { user, refresh } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<Msg[]>([
     { role: "assistant", text: "Welcome to Mazer. Ask anything to begin." },
   ]);
@@ -17,6 +25,27 @@ export default function Chat() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
+  }, [menuOpen]);
+
+  async function handleLogout() {
+    setMenuOpen(false);
+    try {
+      await Auth.logout();
+      refresh();
+      navigate("/", { replace: true });
+    } catch {
+      refresh();
+      navigate("/", { replace: true });
+    }
+  }
 
   function newChat() {
     setMessages([{ role: "assistant", text: "New chat started. What would you like to learn?" }]);
@@ -60,10 +89,45 @@ export default function Chat() {
               ☰
             </button>
             <div className={styles.title}>Mazer</div>
+            {isAdmin && (
+              <a
+                href="/admin"
+                className={styles.adminLink}
+                onClick={(e) => { e.preventDefault(); navigate("/admin"); }}
+              >
+                Admin panel
+              </a>
+            )}
           </div>
-          <button className={styles.dots} title="Menu" onClick={() => alert("Settings coming soon")}>
-            •••
-          </button>
+          <div className={styles.menuWrap} ref={menuRef}>
+            <button
+              className={styles.dots}
+              title="Menu"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen((o) => !o);
+              }}
+            >
+              •••
+            </button>
+            {menuOpen && (
+              <div className={styles.menuDropdown}>
+                <button
+                  type="button"
+                  className={styles.menuItem}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    alert("Settings coming soon");
+                  }}
+                >
+                  Settings
+                </button>
+                <button type="button" className={styles.menuItem} onClick={handleLogout}>
+                  Log Out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className={styles.chatArea}>

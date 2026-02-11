@@ -1,7 +1,8 @@
 .shell{
-  min-height: 100vh;
+  height: 100vh;
   display: grid;
   grid-template-columns: 260px 1fr;
+  grid-template-rows: 1fr;
 }
 
 @media (max-width: 899px){
@@ -9,9 +10,10 @@
 }
 
 .main{
-  display:flex;
-  flex-direction:column;
-  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .topbar{
@@ -30,29 +32,90 @@
 }
 
 .menuBtn{
-  display:none;
+  display: none;
+  min-width: var(--touch-min, 44px);
+  min-height: var(--touch-min, 44px);
   background: rgba(10,11,16,0.35);
   border: 1px solid rgba(255,255,255,0.10);
   color: var(--text);
   border-radius: 12px;
   padding: 10px 12px;
-  cursor:pointer;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
 }
 @media (max-width: 899px){
-  .menuBtn{ display:inline-flex; }
+  .menuBtn{ display: inline-flex; }
 }
 
 .title{
-  font-weight: 800;
-  font-size: 22px;
+  font-weight: 700;
+  font-size: clamp(1.125rem, 2.5vw, 1.375rem);
+}
+
+.adminLink{
+  font-size: 1rem;
+  color: var(--accent, #6b5cff);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding: 8px 12px;
+  min-height: var(--touch-min, 44px);
+  display: inline-flex;
+  align-items: center;
+  border-radius: 8px;
+}
+
+.adminLink:hover{
+  background: rgba(107,92,255,0.15);
+}
+
+.menuWrap{
+  position: relative;
 }
 
 .dots{
+  min-width: var(--touch-min, 44px);
+  min-height: var(--touch-min, 44px);
+  padding: 8px;
   background: transparent;
   border: none;
   color: var(--muted);
-  font-size: 26px;
-  cursor:pointer;
+  font-size: 1.25rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.menuDropdown{
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  min-width: 160px;
+  padding: 6px 0;
+  background: rgba(10,11,16,0.95);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  z-index: 100;
+}
+
+.menuItem{
+  display: block;
+  width: 100%;
+  min-height: var(--touch-min, 44px);
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 1rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menuItem:hover{
+  background: rgba(255,255,255,0.06);
 }
 
 .chatArea{
@@ -103,25 +166,29 @@
 
 .input{
   flex: 1;
+  min-height: var(--touch-min, 44px);
   padding: 12px 14px;
   border-radius: 12px;
-  border: 1px solid rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.2);
   background: rgba(10,11,16,0.45);
   color: var(--text);
-  outline: none;
+  font-size: 1rem;
 }
 
 .send{
-  padding: 12px 16px;
+  min-height: var(--touch-min, 44px);
+  min-width: 110px;
+  padding: 12px 20px;
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.10);
   background: linear-gradient(180deg, var(--accent2), var(--accent));
-  color: white;
-  font-weight: 800;
-  cursor:pointer;
-  min-width: 110px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
 }
+
 .send:disabled{
-  opacity: 0.55;
+  opacity: 0.6;
   cursor: not-allowed;
 }

@@ -1,3 +1,5 @@
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../app/AuthProvider";
 import styles from "./Sidebar.module.css";
 
 type Props = {
@@ -7,6 +9,15 @@ type Props = {
 };
 
 export default function Sidebar({ open, onClose, onNewChat }: Props) {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
+  function goTo(path: string) {
+    navigate(path);
+    onClose();
+  }
+
   return (
     <>
       {/* Mobile overlay */}
@@ -37,12 +48,14 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
           >
             Search chats
           </button>
-          <button
-            className={styles.item}
-            onClick={() => alert("Upload coming soon")}
-          >
-            Upload Documents
-          </button>
+          {!isAdmin && (
+            <button
+              className={styles.item}
+              onClick={() => alert("Upload coming soon")}
+            >
+              Upload Documents
+            </button>
+          )}
           <button
             className={styles.item}
             onClick={() => alert("Library coming soon")}
@@ -50,6 +63,21 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
             Library
           </button>
         </div>
+
+        {isAdmin && (
+          <>
+            <div className={styles.divider} />
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>Admin</div>
+              <button className={styles.item} onClick={() => goTo("/admin")}>
+                All Users
+              </button>
+              <button className={styles.item} onClick={() => goTo("/admin/upload")}>
+                Upload source documents (Ollama)
+              </button>
+            </div>
+          </>
+        )}
 
         <div className={styles.divider} />
 

@@ -13,7 +13,7 @@ export default function RoleSelect() {
         <button className={styles.primary} onClick={() => nav("/login/trainee")}>
           I’m a Trainee
         </button>
-        <button className={styles.link} onClick={() => nav("/login/trainee")}>
+        <button className={styles.link} onClick={() => nav("/register")}>
           Create an account
         </button>
       </div>
