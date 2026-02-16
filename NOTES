@@ -1,0 +1,57 @@
+1️⃣ Backend setup (API layer)
+
+Created a Node.js + TypeScript Express API inside apps/api.
+
+Implemented core routes:
+
+/health → confirms the API is live.
+
+/api/chat → sends user prompts to the LLM and returns AI responses.
+
+Added structured logging with pino and clean environment config using dotenv.
+
+Open browser → http://localhost:4000/health → should return { "ok": true }.
+
+
+
+
+LLM integration
+
+Connected /api/chat to Ollama, which runs Llama 3 (8B) locally.
+
+Supports:
+
+prompt – user input
+
+optional system – sets the AI’s role (e.g., “strict instructor”)
+
+temperature – controls creativity
+
+Returns real model responses, not placeholders.
+
+
+Built a Docker Compose stack to containerize all major services:
+
+api → backend server
+
+ollama → local LLM runtime
+
+mongo → database (for chat history, planned)
+
+chroma → vector database (for RAG module later)
+
+Verified containers are up and networked internally.
+(docker compose ps shows all running and healthy.)
+
+ show four containers running (api, ollama, mongo, chroma).
+
+
+ chat.ts file defines the POST /api/chat endpoint.
+It takes a user’s message (and optional system prompt) from the frontend, calls the Ollama Llama3 model running in Docker, and returns the model’s text reply.
+The endpoint supports adjustable creativity with a temperature parameter and has proper error handling for invalid inputs or model errors.
+Right now it returns the full message at once; in the next phase we’ll enable streaming so the UI receives tokens in real time.”
+
+Invoke-RestMethod -Uri "http://localhost:4000/api/chat" -Method POST -ContentType "application/json" -Body '{"prompt":"In one sentence, summarize the Mazer project: a locally hosted AI chatbot for a Unity-based military training simulation, running on-prem with Ollama, Docker, MongoDB for chat history, and ChromaDB for RAG over uploaded PDFs."}'
+
+Invoke-RestMethod -Uri "http://localhost:4000/api/chat" -Method POST -ContentType "application/json" -Body '{"prompt":"Checking in send me a hello and exaplin the project MAZER AI please"}'
+
