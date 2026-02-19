@@ -1,0 +1,125 @@
+.field{
+  width: 100%;
+  min-height: var(--touch-min, 44px);
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(10,11,16,0.45);
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.field::placeholder{
+  color: var(--muted);
+}
+
+.passwordWrap{
+  position: relative;
+  width: 100%;
+}
+
+.passwordWrap .field{
+  padding-right: 44px;
+}
+
+.passwordToggle{
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: var(--touch-min, 44px);
+  min-height: var(--touch-min, 44px);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.passwordToggle:hover{
+  color: var(--text);
+  background: rgba(255,255,255,0.06);
+}
+
+.form{
+  display:flex;
+  flex-direction:column;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.roleLabel{
+  font-size: 0.9rem;
+  color: var(--muted, rgba(255,255,255,0.6));
+  margin-bottom: -4px;
+}
+
+.roleGroup{
+  display: flex;
+  gap: 10px;
+}
+
+.roleBtn{
+  flex: 1;
+  min-height: var(--touch-min, 44px);
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(10,11,16,0.45);
+  color: var(--text);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .roleBtn{ transition: border-color 0.2s, background 0.2s; }
+}
+
+.roleBtn:hover{
+  background: rgba(255,255,255,0.06);
+}
+
+.roleBtn[data-selected="true"]{
+  border-color: var(--accent);
+  background: rgba(107,92,255,0.15);
+}
+
+.submit{
+  margin: 10px auto 0;
+  min-height: var(--touch-min, 44px);
+  padding: 12px 24px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: linear-gradient(180deg, var(--accent2), var(--accent));
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  min-width: 140px;
+}
+
+.registerRow{
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 1rem;
+}
+
+.registerLink{
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 6px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.registerLink:hover{
+  opacity: 0.9;
+}

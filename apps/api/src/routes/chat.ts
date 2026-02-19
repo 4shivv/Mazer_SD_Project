@@ -59,7 +59,15 @@ router.post("/chat", async (req, res) => {
 
     if (!response.ok) {
       const text = await response.text();
-      return res.status(502).json({ error: `ollama error: ${text}` });
+      let parsed: any = text;
+      try {
+        parsed = JSON.parse(text);
+      } catch {}
+      const errMsg = typeof parsed === "object" && parsed?.error ? parsed.error : String(parsed);
+      const hint = /not found|unknown model/i.test(errMsg)
+        ? ` Model '${model}' may not be pulled. Run: ollama pull ${model}`
+        : "";
+      return res.status(502).json({ error: `ollama error: ${errMsg}${hint}` });
     }
 
     const data: any = await response.json();

@@ -1,0 +1,40 @@
+.wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 16px;
+}
+
+.card {
+  width: min(520px, 94vw);
+  background: linear-gradient(
+    180deg,
+    rgba(36, 30, 60, 0.75),
+    rgba(18, 16, 28, 0.78)
+  );
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  border-radius: var(--radius);
+  padding: 34px 34px 28px;
+  backdrop-filter: blur(10px);
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.subtitle {
+  margin: 10px 0 22px;
+  color: var(--muted);
+  font-size: 1rem;
+  text-align: center;
+}
+
+.body {
+  margin-top: 8px;
+}

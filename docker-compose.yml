@@ -8,7 +8,8 @@ services:
     environment:
       - PORT=4000
       - OLLAMA_HOST=http://ollama:11434
-      # add DB vars later when we wire Mongo (e.g., MONGO_URL)
+      - MONGO_URL=mongodb://mongo:27017/mazerai
+      - JWT_SECRET=dummysecret
     ports:
       - "4000:4000"
     volumes:
