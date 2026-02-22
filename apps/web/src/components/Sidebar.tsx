@@ -1,14 +1,27 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
 import styles from "./Sidebar.module.css";
+import type { ConversationSummary } from "../lib/api";
 
 type Props = {
   open: boolean;
   onClose: () => void;
   onNewChat: () => void;
+  onOpenConversation: (conversationId: string) => void;
+  history: ConversationSummary[];
+  historyLoading: boolean;
+  activeConversationId: string | null;
 };
 
-export default function Sidebar({ open, onClose, onNewChat }: Props) {
+export default function Sidebar({
+  open,
+  onClose,
+  onNewChat,
+  onOpenConversation,
+  history,
+  historyLoading,
+  activeConversationId,
+}: Props) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -83,9 +96,26 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
 
         <div className={styles.section}>
           <div className={styles.sectionTitle}>History</div>
-          <button className={styles.historyItem}>Chat #1</button>
-          <button className={styles.historyItem}>Chat #2</button>
-          <button className={styles.historyItem}>Chat #3</button>
+          {historyLoading && <div className={styles.historyHint}>Loading conversations...</div>}
+          {!historyLoading && history.length === 0 && (
+            <div className={styles.historyHint}>No saved conversations yet.</div>
+          )}
+          {!historyLoading &&
+            history.map((conversation) => (
+              <button
+                key={conversation.id}
+                className={`${styles.historyItem} ${
+                  activeConversationId === conversation.id ? styles.historyActive : ""
+                }`}
+                onClick={() => {
+                  onOpenConversation(conversation.id);
+                  onClose();
+                }}
+                title={conversation.title}
+              >
+                {conversation.title}
+              </button>
+            ))}
         </div>
 
         <div className={styles.footer}>

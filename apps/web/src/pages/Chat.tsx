@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
-import { sendChat } from "../lib/api";
+import {
+  getConversationMessages,
+  listConversations,
+  sendChatWithConversation,
+  type ConversationSummary,
+} from "../lib/api";
 import { useAuth } from "../app/AuthProvider";
 import * as Auth from "../lib/auth";
 import styles from "./Chat.module.css";
 
-type Msg = { role: "user" | "assistant"; text: string };
+type Msg = { id?: string; role: "user" | "assistant"; text: string };
 
 export default function Chat() {
   const navigate = useNavigate();
@@ -18,6 +23,9 @@ export default function Chat() {
   const [messages, setMessages] = useState<Msg[]>([
     { role: "assistant", text: "Welcome to Mazer. Ask anything to begin." },
   ]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [history, setHistory] = useState<ConversationSummary[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -35,6 +43,22 @@ export default function Chat() {
     return () => document.removeEventListener("click", onDocClick);
   }, [menuOpen]);
 
+  async function refreshHistory() {
+    try {
+      setHistoryLoading(true);
+      const res = await listConversations();
+      setHistory(res.conversations);
+    } catch {
+      setHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void refreshHistory();
+  }, []);
+
   async function handleLogout() {
     setMenuOpen(false);
     try {
@@ -48,9 +72,34 @@ export default function Chat() {
   }
 
   function newChat() {
+    setConversationId(null);
     setMessages([{ role: "assistant", text: "New chat started. What would you like to learn?" }]);
     setInput("");
     setSidebarOpen(false);
+  }
+
+  async function openConversation(id: string) {
+    if (loading) return;
+    try {
+      setLoading(true);
+      const res = await getConversationMessages(id);
+      setConversationId(res.conversation.id);
+      if (res.messages.length === 0) {
+        setMessages([{ role: "assistant", text: "This conversation has no messages yet." }]);
+      } else {
+        setMessages(
+          res.messages.map((message) => ({
+            id: message.id,
+            role: message.role,
+            text: message.content,
+          }))
+        );
+      }
+    } catch (e: any) {
+      setMessages((m) => [...m, { role: "assistant", text: `Error: ${e.message}` }]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function onSend() {
@@ -62,8 +111,10 @@ export default function Chat() {
     setLoading(true);
 
     try {
-      const res = await sendChat(prompt);
+      const res = await sendChatWithConversation(prompt, conversationId ?? undefined);
+      setConversationId(res.conversationId);
       setMessages((m) => [...m, { role: "assistant", text: res.reply }]);
+      await refreshHistory();
     } catch (e: any) {
       setMessages((m) => [
         ...m,
@@ -80,6 +131,10 @@ export default function Chat() {
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onNewChat={newChat}
+        onOpenConversation={openConversation}
+        history={history}
+        historyLoading={historyLoading}
+        activeConversationId={conversationId}
       />
 
       <div className={styles.main}>
@@ -133,7 +188,7 @@ export default function Chat() {
         <div className={styles.chatArea}>
           {messages.map((m, i) => (
             <div
-              key={i}
+              key={m.id ?? i}
               className={`${styles.bubble} ${m.role === "user" ? styles.user : styles.assistant}`}
             >
               {m.text}

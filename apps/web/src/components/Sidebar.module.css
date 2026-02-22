@@ -114,6 +114,15 @@
   cursor: pointer;
 }
 .historyItem:hover{ background: rgba(10,11,16,0.32); }
+.historyActive{
+  border-color: rgba(107,92,255,0.45);
+  background: rgba(107,92,255,0.16);
+}
+.historyHint{
+  color: var(--muted);
+  font-size: 0.95rem;
+  padding: 4px 8px;
+}
 
 .footer{
   margin-top: auto;
