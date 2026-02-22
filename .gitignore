@@ -11,3 +11,6 @@ build/
 **/build/
 
 .DS_Store
+
+# Local planning/reference docs not intended for commit by default
+docs/
