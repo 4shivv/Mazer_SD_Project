@@ -1,4 +1,8 @@
 import { Router } from "express";
+import mongoose from "mongoose";
+import { requireAuth } from "../auth/middleware.js";
+import { Conversation } from "../models/Conversation.js";
+import { Message } from "../models/Message.js";
 
 export const router = Router();
 
@@ -22,27 +26,73 @@ Safety:
 `.trim();
 
 
+function buildConversationTitle(prompt: string): string {
+  const normalized = prompt.replace(/\s+/g, " ").trim();
+  if (!normalized) return "New Conversation";
+  return normalized.slice(0, 72);
+}
+
 /**
  * POST /api/chat
- * body: { prompt: string, system?: string, model?: string, temperature?: number }
- * returns: { reply: string }
+ * body: { prompt: string, conversationId?: string, system?: string, model?: string, temperature?: number }
+ * returns: { reply: string, conversationId: string }
  */
-router.post("/chat", async (req, res) => {
+router.post("/chat", requireAuth, async (req, res) => {
   try {
-    const { prompt, system, model = "llama3:8b", temperature = 0.3 } = req.body ?? {};
+    if (!req.user) return res.status(401).json({ error: "Not logged in" });
+
+    const {
+      prompt,
+      conversationId,
+      system,
+      model = "llama3:8b",
+      temperature = 0.3,
+    } = req.body ?? {};
     const effectiveSystem =
       typeof system === "string" && system.trim().length > 0
         ? system.trim()
         : DEFAULT_SYSTEM_PROMPT;
 
-    if (!prompt || typeof prompt !== "string") {
+    if (!prompt || typeof prompt !== "string" || prompt.trim().length === 0) {
       return res.status(400).json({ error: "prompt is required (string)" });
     }
+
+    const cleanPrompt = prompt.trim();
+    const userId = req.user.id;
+    let conversationDoc;
+
+    if (conversationId !== undefined) {
+      if (typeof conversationId !== "string" || !mongoose.Types.ObjectId.isValid(conversationId)) {
+        return res.status(400).json({ error: "Invalid conversation id" });
+      }
+
+      conversationDoc = await Conversation.findOne({
+        _id: conversationId,
+        userId,
+        isArchived: false,
+      });
+
+      if (!conversationDoc) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+    } else {
+      conversationDoc = await Conversation.create({
+        userId,
+        title: buildConversationTitle(cleanPrompt),
+      });
+    }
+
+    await Message.create({
+      conversationId: conversationDoc._id,
+      userId,
+      role: "user",
+      content: cleanPrompt,
+    });
 
     const host = process.env.OLLAMA_HOST || "http://localhost:11434";
 
     // Optional system prompt (role conditioning). We’ll make this role-aware later.
-    const fullPrompt = `System:\n${effectiveSystem}\n\nUser:\n${prompt}\n\nAssistant:`;
+    const fullPrompt = `System:\n${effectiveSystem}\n\nUser:\n${cleanPrompt}\n\nAssistant:`;
 
 
     // Non-streaming call for now. We'll add SSE streaming in the next step.
@@ -71,7 +121,24 @@ router.post("/chat", async (req, res) => {
     }
 
     const data: any = await response.json();
-    return res.json({ reply: data.response ?? "" });
+    const reply = typeof data?.response === "string" ? data.response : "";
+
+    await Message.create({
+      conversationId: conversationDoc._id,
+      userId,
+      role: "assistant",
+      content: reply,
+    });
+
+    await Conversation.updateOne(
+      { _id: conversationDoc._id },
+      { $set: { updatedAt: new Date() } }
+    );
+
+    return res.json({
+      reply,
+      conversationId: String(conversationDoc._id),
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err?.message ?? "unknown error" });
   }

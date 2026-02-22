@@ -6,6 +6,7 @@ import cookieParser from "cookie-parser";
 import { connectMongo } from "./db.js";
 import { authRouter } from "./routes/auth.js";
 import { router as chatRouter } from "./routes/chat.js";
+import { conversationsRouter } from "./routes/conversations.js";
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.get("/health", (_req, res) => {
 
 // Routes
 app.use("/api", chatRouter);
+app.use("/api", conversationsRouter);
 app.use("/api/auth", authRouter);
 
 // Connect to Mongo then start server (single listen)
