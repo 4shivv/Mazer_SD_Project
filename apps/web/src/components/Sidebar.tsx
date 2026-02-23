@@ -102,7 +102,7 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
 
           <button
             className={styles.item}
-            onClick={() => alert("Library coming soon")}
+            onClick={() => goTo("/library")}
           >
             Library
           </button>
