@@ -29,11 +29,15 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   if (!res.ok) {
-    const err =
-      typeof data === "object" && data !== null && "error" in data
-        ? (data as { error: string }).error
-        : text || `Request failed: ${res.status}`;
-    throw new Error(err);
+    let errMsg = text || `Request failed: ${res.status}`;
+
+  if (typeof data === "object" && data !== null && "error" in data) {
+    const val = (data as any).error;
+    if (typeof val === "string") errMsg = val;
+    else errMsg = JSON.stringify(val);
+}
+
+throw new Error(errMsg);
   }
   if (data !== null) return data as T;
   return (text ? JSON.parse(text) : null) as T;
