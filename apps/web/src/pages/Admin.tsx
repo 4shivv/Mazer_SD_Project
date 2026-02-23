@@ -34,7 +34,7 @@ export default function Admin() {
         </ul>
       </div>
       <button
-        onClick={() => nav("/chat")}
+        onClick={() => nav(-1)}
         style={{
           display: "block",
           width: "100%",
