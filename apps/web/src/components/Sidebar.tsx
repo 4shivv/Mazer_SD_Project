@@ -120,7 +120,7 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
                 className={styles.item}
                 onClick={() => goTo("/admin/upload")}
               >
-                Upload source documents (Ollama)
+                Mazer Knowledge Base
               </button>
             </div>
           </>
