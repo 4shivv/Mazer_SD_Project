@@ -19,7 +19,7 @@ export default function Admin() {
   return (
     <AuthCard title="Admin Panel">
       <p style={{ marginBottom: "1rem", color: "var(--muted)" }}>
-        You can also open the sidebar (☰) on the Chat page and use <strong>All Users</strong> or <strong>Upload source documents</strong>.
+        You can also open the sidebar (☰) on the Chat page and use <strong>All Users</strong> or <strong>Mazer Knowledge Base</strong>.
       </p>
       <div style={{ textAlign: "left", marginBottom: "1.5rem" }}>
         <p><strong>Admin User:</strong> {user?.email}</p>
@@ -34,7 +34,7 @@ export default function Admin() {
         </ul>
       </div>
       <button
-        onClick={() => nav("/chat")}
+        onClick={() => nav(-1)}
         style={{
           display: "block",
           width: "100%",

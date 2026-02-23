@@ -9,6 +9,7 @@ import Admin from "../pages/Admin";
 import AdminUpload from "../pages/AdminUpload";
 import Chat from "../pages/Chat";
 import Dashboard from "../pages/Dashboard";
+import Library from "../pages/Library"; 
 
 export const router = createBrowserRouter([
   { path: "/", element: <Home /> },
@@ -21,6 +22,7 @@ export const router = createBrowserRouter([
     children: [
       { path: "/dashboard", element: <Dashboard /> },
       { path: "/chat", element: <Chat /> },
+      { path: "/library", element: <Library /> }, // added here
 
       {
         element: <RequireAdmin />,
@@ -31,6 +33,6 @@ export const router = createBrowserRouter([
       },
     ],
   },
+
   { path: "*", element: <Navigate to="/" replace /> },
 ]);
-

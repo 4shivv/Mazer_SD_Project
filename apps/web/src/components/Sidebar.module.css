@@ -132,3 +132,30 @@
   cursor: pointer;
 }
 .footerItem:hover{ background: rgba(255,255,255,0.05); }
+
+.historyRow{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.deleteBtn{
+  min-width: 36px;
+  min-height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(10,11,16,0.35);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.deleteBtn:hover{
+  color: var(--text);
+  background: rgba(255,255,255,0.06);
+}
+
+.emptyHistory{
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
