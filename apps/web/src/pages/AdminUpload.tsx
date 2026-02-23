@@ -2,68 +2,53 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
 import AuthCard from "../components/AuthCard";
-
-type Doc = {
-  id: string;
-  name: string;
-  size: number;
-  status: "Queued" | "Processing" | "Ready";
-};
-
-function uid() {
-  return Math.random().toString(36).slice(2);
-}
+import type { Doc } from "../lib/docsStore";
+import { addDocs, deleteDoc, listDocs, updateDocStatus } from "../lib/docsStore";
 
 export default function AdminUpload() {
   const nav = useNavigate();
   const { user } = useAuth();
 
-  // admin guard
-  useEffect(() => {
-    if (!user || user.role !== "admin") {
-      nav("/chat", { replace: true });
-    }
-  }, [user, nav]);
-
   const [docs, setDocs] = useState<Doc[]>([]);
   const [dragging, setDragging] = useState(false);
 
+  // admin guard
+  useEffect(() => {
+    if (!user || user.role !== "admin") nav("/chat", { replace: true });
+  }, [user, nav]);
+
+  // load persisted docs
+  useEffect(() => {
+    setDocs(listDocs());
+  }, []);
+
+  function refresh() {
+    setDocs(listDocs());
+  }
+
   function addFiles(files: FileList | null) {
-    if (!files) return;
+    if (!files || files.length === 0) return;
 
-    const newDocs: Doc[] = Array.from(files).map((f) => ({
-      id: uid(),
-      name: f.name,
-      size: f.size,
-      status: "Queued",
-    }));
+    const newDocs = addDocs(files);
+    refresh();
 
-    setDocs((d) => [...newDocs, ...d]);
+    const ids = newDocs.map((d) => d.id);
 
     // fake processing
     setTimeout(() => {
-      setDocs((d) =>
-        d.map((doc) =>
-          newDocs.find((n) => n.id === doc.id)
-            ? { ...doc, status: "Processing" }
-            : doc
-        )
-      );
+      updateDocStatus(ids, "Processing");
+      refresh();
     }, 800);
 
     setTimeout(() => {
-      setDocs((d) =>
-        d.map((doc) =>
-          newDocs.find((n) => n.id === doc.id)
-            ? { ...doc, status: "Ready" }
-            : doc
-        )
-      );
+      updateDocStatus(ids, "Ready");
+      refresh();
     }, 2000);
   }
 
   function removeDoc(id: string) {
-    setDocs((d) => d.filter((doc) => doc.id !== id));
+    deleteDoc(id);
+    refresh();
   }
 
   return (
@@ -119,7 +104,7 @@ export default function AdminUpload() {
       </div>
 
       {/* doc list */}
-      {docs.length > 0 && (
+      {docs.length > 0 ? (
         <div style={{ marginBottom: "1.5rem" }}>
           {docs.map((doc) => (
             <div
@@ -158,10 +143,14 @@ export default function AdminUpload() {
             </div>
           ))}
         </div>
+      ) : (
+        <div style={{ color: "var(--muted)", marginBottom: "1.5rem" }}>
+          No documents uploaded yet.
+        </div>
       )}
 
       <button
-        onClick={() => nav("/chat")}
+        onClick={() => nav(-1)}
         style={{
           display: "block",
           width: "100%",
