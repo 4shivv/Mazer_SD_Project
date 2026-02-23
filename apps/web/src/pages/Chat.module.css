@@ -44,6 +44,7 @@
   align-items: center;
   justify-content: center;
 }
+
 @media (max-width: 899px){
   .menuBtn{ display: inline-flex; }
 }
@@ -118,6 +119,10 @@
   background: rgba(255,255,255,0.06);
 }
 
+/* ========================= */
+/* CHAT AREA */
+/* ========================= */
+
 .chatArea{
   flex: 1;
   padding: 20px 18px 10px;
@@ -133,6 +138,11 @@
   border-radius: 14px;
   border: 1px solid rgba(255,255,255,0.08);
   background: rgba(10,11,16,0.35);
+  display: flex;
+  flex-direction: column;
+}
+
+.bubbleText{
   white-space: pre-wrap;
 }
 
@@ -146,10 +156,53 @@
   margin-right: auto;
 }
 
-.thinking{
+.copyBtn{
+  align-self: flex-end;
+  margin-top: 8px;
+  font-size: 12px;
+  opacity: 0.8;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 4px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.copyBtn:hover{
+  opacity: 1;
+}
+
+/* Thinking bubble styled like assistant */
+.thinkingBubble{
+  max-width: min(420px, 92%);
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(10,11,16,0.25);
   color: var(--muted);
   font-style: italic;
 }
+
+.thinkingDots{
+  font-size: 14px;
+}
+
+/* ========================= */
+/* ERROR */
+/* ========================= */
+
+.errorBanner{
+  margin: 10px 16px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  background: rgba(255, 70, 70, 0.12);
+  border: 1px solid rgba(255, 70, 70, 0.35);
+}
+
+/* ========================= */
+/* COMPOSER */
+/* ========================= */
 
 .composer{
   padding: 14px 18px 18px;
@@ -173,6 +226,8 @@
   background: rgba(10,11,16,0.45);
   color: var(--text);
   font-size: 1rem;
+  resize: none;
+  line-height: 1.35;
 }
 
 .send{

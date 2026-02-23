@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
 import styles from "./Sidebar.module.css";
+import { deleteSession, listSessions } from "../lib/chatStore";
 
 type Props = {
   open: boolean;
@@ -13,9 +15,39 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
+  const [sessions, setSessions] = useState(() => listSessions());
+
+  // Refresh session list when sidebar opens (and on storage changes across tabs)
+  useEffect(() => {
+    if (open) setSessions(listSessions());
+
+    function onStorage(e: StorageEvent) {
+      if (!e.key) return;
+      if (e.key.startsWith("mazer.chat.sessions.")) {
+        setSessions(listSessions());
+      }
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [open]);
+
   function goTo(path: string) {
     navigate(path);
     onClose();
+  }
+
+  function openChat(sessionId: string) {
+    navigate(`/chat?sid=${encodeURIComponent(sessionId)}`);
+    onClose();
+  }
+
+  function handleDelete(sessionId: string) {
+    // optional confirm (prevents accidental deletes)
+    const ok = confirm("Delete this chat? This cannot be undone.");
+    if (!ok) return;
+
+    deleteSession(sessionId);
+    setSessions(listSessions());
   }
 
   return (
@@ -39,15 +71,26 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
         </div>
 
         <div className={styles.section}>
-          <button className={styles.item} onClick={onNewChat}>
+          <button
+            className={styles.item}
+            onClick={() => {
+              onNewChat();
+              // sidebar will be closed by Chat.tsx after navigation,
+              // but we still close here for immediate UX
+              onClose();
+              setTimeout(() => setSessions(listSessions()), 50);
+            }}
+          >
             New Chat
           </button>
+
           <button
             className={styles.item}
             onClick={() => alert("Search coming soon")}
           >
             Search chats
           </button>
+
           {!isAdmin && (
             <button
               className={styles.item}
@@ -56,6 +99,7 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
               Upload Documents
             </button>
           )}
+
           <button
             className={styles.item}
             onClick={() => alert("Library coming soon")}
@@ -72,7 +116,10 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
               <button className={styles.item} onClick={() => goTo("/admin")}>
                 All Users
               </button>
-              <button className={styles.item} onClick={() => goTo("/admin/upload")}>
+              <button
+                className={styles.item}
+                onClick={() => goTo("/admin/upload")}
+              >
                 Upload source documents (Ollama)
               </button>
             </div>
@@ -83,9 +130,30 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
 
         <div className={styles.section}>
           <div className={styles.sectionTitle}>History</div>
-          <button className={styles.historyItem}>Chat #1</button>
-          <button className={styles.historyItem}>Chat #2</button>
-          <button className={styles.historyItem}>Chat #3</button>
+
+          {sessions.length === 0 ? (
+            <div className={styles.emptyHistory}>No chats yet.</div>
+          ) : (
+            sessions.slice(0, 15).map((s) => (
+              <div key={s.id} className={styles.historyRow}>
+                <button
+                  className={styles.historyItem}
+                  title={s.title}
+                  onClick={() => openChat(s.id)}
+                >
+                  {s.title || "Chat"}
+                </button>
+
+                <button
+                  className={styles.deleteBtn}
+                  title="Delete chat"
+                  onClick={() => handleDelete(s.id)}
+                >
+                  ✕
+                </button>
+              </div>
+            ))
+          )}
         </div>
 
         <div className={styles.footer}>
