@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
 import styles from "./Sidebar.module.css";
-import { deleteSession, listSessions } from "../lib/chatStore";
+import { listSessions } from "../lib/chatStore";
+import type { ChatSessionMeta } from "../lib/chatStore";
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  onNewChat: () => void;
+  onNewChat: () => Promise<void> | void;
 };
 
 export default function Sidebar({ open, onClose, onNewChat }: Props) {
@@ -15,20 +16,25 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
-  const [sessions, setSessions] = useState(() => listSessions());
+  const [sessions, setSessions] = useState<ChatSessionMeta[]>([]);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // Refresh session list when sidebar opens (and on storage changes across tabs)
-  useEffect(() => {
-    if (open) setSessions(listSessions());
-
-    function onStorage(e: StorageEvent) {
-      if (!e.key) return;
-      if (e.key.startsWith("mazer.chat.sessions.")) {
-        setSessions(listSessions());
-      }
+  async function refreshSessions() {
+    setLoadingHistory(true);
+    try {
+      const next = await listSessions();
+      setSessions(next);
+      setHistoryError(null);
+    } catch (error: any) {
+      setHistoryError(error?.message || "Failed to load chats");
+    } finally {
+      setLoadingHistory(false);
     }
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+  }
+
+  useEffect(() => {
+    void refreshSessions();
   }, [open]);
 
   function goTo(path: string) {
@@ -41,13 +47,8 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
     onClose();
   }
 
-  function handleDelete(sessionId: string) {
-    // optional confirm (prevents accidental deletes)
-    const ok = confirm("Delete this chat? This cannot be undone.");
-    if (!ok) return;
-
-    deleteSession(sessionId);
-    setSessions(listSessions());
+  function handleDelete() {
+    alert("Delete chat is not available in this slice yet.");
   }
 
   return (
@@ -74,11 +75,11 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
           <button
             className={styles.item}
             onClick={() => {
-              onNewChat();
-              // sidebar will be closed by Chat.tsx after navigation,
-              // but we still close here for immediate UX
-              onClose();
-              setTimeout(() => setSessions(listSessions()), 50);
+              void (async () => {
+                await onNewChat();
+                onClose();
+                await refreshSessions();
+              })();
             }}
           >
             New Chat
@@ -131,6 +132,9 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
         <div className={styles.section}>
           <div className={styles.sectionTitle}>History</div>
 
+          {historyError && <div className={styles.emptyHistory}>{historyError}</div>}
+          {loadingHistory && <div className={styles.emptyHistory}>Loading chats...</div>}
+
           {sessions.length === 0 ? (
             <div className={styles.emptyHistory}>No chats yet.</div>
           ) : (
@@ -147,7 +151,7 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
                 <button
                   className={styles.deleteBtn}
                   title="Delete chat"
-                  onClick={() => handleDelete(s.id)}
+                  onClick={() => handleDelete()}
                 >
                   ✕
                 </button>

@@ -8,19 +8,18 @@ import type { ChatMsg } from "../lib/chatStore";
 import {
   createSession,
   getMessages,
-  renameSession,
-  saveMessages,
 } from "../lib/chatStore";
 import styles from "./Chat.module.css";
 
 type Msg = { role: "user" | "assistant"; text: string; ts?: number };
+const WELCOME_MESSAGE: Msg = {
+  role: "assistant",
+  text: "Welcome to Mazer. Ask anything to begin.",
+  ts: Date.now(),
+};
 
 function toMsg(m: ChatMsg): Msg {
   return { role: m.role, text: m.content, ts: m.ts };
-}
-
-function toChatMsg(m: Msg): ChatMsg {
-  return { role: m.role, content: m.text, ts: m.ts ?? Date.now() };
 }
 
 export default function Chat() {
@@ -33,9 +32,7 @@ export default function Chat() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const [messages, setMessages] = useState<Msg[]>([
-    { role: "assistant", text: "Welcome to Mazer. Ask anything to begin.", ts: Date.now() },
-  ]);
+  const [messages, setMessages] = useState<Msg[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
@@ -50,31 +47,50 @@ export default function Chat() {
   // Ensure session exists
   useEffect(() => {
     if (sid) return;
-    const s = createSession("New chat");
-    navigate(`/chat?sid=${encodeURIComponent(s.id)}`, { replace: true });
+    let cancelled = false;
+    (async () => {
+      try {
+        const session = await createSession("New chat");
+        if (!cancelled) {
+          navigate(`/chat?sid=${encodeURIComponent(session.id)}`, { replace: true });
+        }
+      } catch (error: any) {
+        if (!cancelled) {
+          setErrorBanner(error?.message || "Failed to create conversation");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [sid, navigate]);
 
   // Load messages for session
   useEffect(() => {
     if (!sid) return;
-    const stored = getMessages(sid).map(toMsg);
-    if (stored.length > 0) {
-      setMessages(stored);
-    } else {
-      setMessages([
-        { role: "assistant", text: "Welcome to Mazer. Ask anything to begin.", ts: Date.now() },
-      ]);
-    }
-    setErrorBanner(null);
-    setInput("");
-    setLoading(false);
+    let cancelled = false;
+    (async () => {
+      try {
+        const stored = (await getMessages(sid)).map(toMsg);
+        if (cancelled) return;
+        if (stored.length > 0) setMessages(stored);
+        else setMessages([WELCOME_MESSAGE]);
+        setErrorBanner(null);
+      } catch (error: any) {
+        if (cancelled) return;
+        setMessages([WELCOME_MESSAGE]);
+        setErrorBanner(error?.message || "Failed to load conversation");
+      } finally {
+        if (!cancelled) {
+          setInput("");
+          setLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [sid]);
-
-  // Persist messages
-  useEffect(() => {
-    if (!sid) return;
-    saveMessages(sid, messages.map(toChatMsg));
-  }, [sid, messages]);
 
   // Auto-scroll
   useEffect(() => {
@@ -103,10 +119,14 @@ export default function Chat() {
     }
   }
 
-  function newChat() {
-    const s = createSession("New chat");
-    setSidebarOpen(false);
-    navigate(`/chat?sid=${encodeURIComponent(s.id)}`);
+  async function newChat() {
+    try {
+      const session = await createSession("New chat");
+      setSidebarOpen(false);
+      navigate(`/chat?sid=${encodeURIComponent(session.id)}`);
+    } catch (error: any) {
+      setErrorBanner(error?.message || "Failed to create conversation");
+    }
   }
 
   async function onSend() {
@@ -115,12 +135,18 @@ export default function Chat() {
 
     setErrorBanner(null);
 
-    // Auto-title first user message
-    if (sid) {
-      const title =
-        prompt.length > 40 ? prompt.slice(0, 40).trim() + "…" : prompt;
-      renameSession(sid, title);
+    let activeConversationId = sid;
+    if (!activeConversationId) {
+      try {
+        const created = await createSession("New chat");
+        activeConversationId = created.id;
+        navigate(`/chat?sid=${encodeURIComponent(created.id)}`, { replace: true });
+      } catch (error: any) {
+        setErrorBanner(error?.message || "Failed to create conversation");
+        return;
+      }
     }
+    if (!activeConversationId) return;
 
     const userMsg: Msg = { role: "user", text: prompt, ts: Date.now() };
     setMessages((m) => [...m, userMsg]);
@@ -128,13 +154,16 @@ export default function Chat() {
     setLoading(true);
 
     try {
-      const res = await sendChat(prompt);
+      const res = await sendChat(prompt, activeConversationId);
       const assistantMsg: Msg = {
         role: "assistant",
         text: res.reply || "",
         ts: Date.now(),
       };
       setMessages((m) => [...m, assistantMsg]);
+      if (res.conversation_id && res.conversation_id !== activeConversationId) {
+        navigate(`/chat?sid=${encodeURIComponent(res.conversation_id)}`, { replace: true });
+      }
     } catch (e: any) {
       setErrorBanner(e?.message || "Request failed");
     } finally {
