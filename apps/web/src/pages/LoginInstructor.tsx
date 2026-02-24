@@ -8,7 +8,7 @@ import { useAuth } from "../app/AuthProvider";
 export default function LoginInstructor() {
   const nav = useNavigate();
   const { setUser } = useAuth();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -18,18 +18,22 @@ export default function LoginInstructor() {
     e.preventDefault();
     setError(null);
 
-    if (!email.trim() || !password) {
+    if (!identifier.trim() || !password) {
       setError("Please enter your email/username and password.");
       return;
     }
 
     try {
       setLoading(true);
-      const res = await Auth.login(email.trim(), password);
+      const res = await Auth.login(identifier.trim(), password);
       setUser(res.user);
       nav("/chat", { replace: true });
     } catch (err: any) {
-      setError(err?.message || "Login failed.");
+      if (err?.message === "instructor_pending_approval") {
+        setError("Instructor account is pending admin approval.");
+      } else {
+        setError(err?.message || "Login failed.");
+      }
     } finally {
       setLoading(false);
     }
@@ -42,8 +46,8 @@ export default function LoginInstructor() {
         <input
           className={styles.field}
           placeholder="Email or username"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
           autoComplete="username"
         />
         <div className={styles.passwordWrap}>

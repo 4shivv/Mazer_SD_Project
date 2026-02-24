@@ -1,18 +1,24 @@
 import { api } from "./api";
 
-export type Role = "user" | "admin";
-export type MeResponse = { user: { id: string; email: string; role: Role } };
+export type Role = "trainee" | "instructor" | "admin";
+export type AuthUser = { id: string; username: string; email: string; role: Role };
+export type MeResponse = { user: AuthUser };
+export type RegisterResponse = {
+  pendingApproval: boolean;
+  message?: string;
+  user?: AuthUser;
+};
 
-export function login(email: string, password: string) {
+export function login(identifier: string, password: string) {
   return api<MeResponse>("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ identifier, password }),
   });
 }
 
-export function register(email: string, password: string, role: "user" | "admin" = "user") {
-  const body = { email, password, role };
-  return api<MeResponse>("/api/auth/register", {
+export function register(username: string, password: string, role: "trainee" | "instructor" = "trainee") {
+  const body = { username, password, role };
+  return api<RegisterResponse>("/api/auth/register", {
     method: "POST",
     body: JSON.stringify(body),
   });
