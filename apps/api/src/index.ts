@@ -7,6 +7,7 @@ import { connectMongo } from "./db.js";
 import { authRouter } from "./routes/auth.js";
 import { router as chatRouter } from "./routes/chat.js";
 import { adminRouter } from "./routes/admin.js";
+import { instructorRouter } from "./routes/instructor.js";
 import { runExpiredConversationSweep } from "./services/admin/retentionAdminService.js";
 
 dotenv.config();
@@ -34,6 +35,7 @@ app.get("/health", (_req, res) => {
 app.use("/api", chatRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/instructor", instructorRouter);
 
 // Connect to Mongo then start server (single listen)
 const PORT = process.env.PORT || 4000;

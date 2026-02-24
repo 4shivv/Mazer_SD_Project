@@ -26,3 +26,8 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   if (req.user?.role !== "admin") return res.status(403).json({ error: "Admin only" });
   return next();
 }
+
+export function requireInstructor(req: Request, res: Response, next: NextFunction) {
+  if (req.user?.role !== "instructor") return res.status(403).json({ error: "Instructor only" });
+  return next();
+}
