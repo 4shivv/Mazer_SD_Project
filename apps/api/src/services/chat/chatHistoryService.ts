@@ -7,6 +7,7 @@ import {
   updateConversationTitleOnFirstMessage,
 } from "../../repositories/conversationRepository.js";
 import { createMessageRecords, listMessagesByConversationId } from "../../repositories/messageRepository.js";
+import { resolveSelfDestructDateForAnchor } from "../admin/retentionAdminService.js";
 
 export class ChatHistoryServiceError extends Error {
   status: number;
@@ -72,13 +73,29 @@ function assertValidConversationId(conversationId: string) {
   }
 }
 
+function assertConversationNotExpired(conversation: unknown) {
+  const conversationDoc = conversation as { self_destruct_date?: Date | null };
+  const selfDestructDate = conversationDoc.self_destruct_date;
+  if (selfDestructDate instanceof Date && selfDestructDate.getTime() <= Date.now()) {
+    throw new ChatHistoryServiceError(
+      404,
+      "Auto-deleted per retention policy",
+      "conversation_expired"
+    );
+  }
+}
+
 export async function createConversationForUser(args: {
   userId: string;
   title?: string;
 }): Promise<CreateConversationResult> {
+  const now = new Date();
+  const selfDestructDate = await resolveSelfDestructDateForAnchor(now);
   const created = await createConversationRecord({
     userId: args.userId,
     title: normalizeTitle(args.title),
+    lastMessageAt: now,
+    selfDestructDate,
   });
   const createdDoc = created as any;
 
@@ -135,6 +152,7 @@ export async function getConversationMessagesForUser(args: {
   if (!conversation) {
     throw new ChatHistoryServiceError(404, "Conversation not found", "conversation_not_found");
   }
+  assertConversationNotExpired(conversation);
 
   const messages = await listMessagesByConversationId(args.conversationId);
   return {
@@ -171,6 +189,7 @@ export async function resolveConversationForChat(args: {
   if (!existing) {
     throw new ChatHistoryServiceError(404, "Conversation not found", "conversation_not_found");
   }
+  assertConversationNotExpired(existing);
 
   return {
     conversationId: args.conversationId,
@@ -192,6 +211,7 @@ export async function persistChatExchange(args: {
   if (!conversation) {
     throw new ChatHistoryServiceError(404, "Conversation not found", "conversation_not_found");
   }
+  assertConversationNotExpired(conversation);
 
   const now = new Date();
   await createMessageRecords([
@@ -209,11 +229,13 @@ export async function persistChatExchange(args: {
     },
   ]);
 
+  const selfDestructDate = await resolveSelfDestructDateForAnchor(now);
   await touchConversationActivity({
     conversationId: args.conversationId,
     userId: args.userId,
     lastMessageAt: now,
     incrementBy: 2,
+    selfDestructDate,
   });
 
   const suggestedTitle = generateConversationTitleFromPrompt(args.userPrompt);

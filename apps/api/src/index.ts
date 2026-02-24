@@ -6,6 +6,8 @@ import cookieParser from "cookie-parser";
 import { connectMongo } from "./db.js";
 import { authRouter } from "./routes/auth.js";
 import { router as chatRouter } from "./routes/chat.js";
+import { adminRouter } from "./routes/admin.js";
+import { runExpiredConversationSweep } from "./services/admin/retentionAdminService.js";
 
 dotenv.config();
 
@@ -31,11 +33,26 @@ app.get("/health", (_req, res) => {
 // Routes
 app.use("/api", chatRouter);
 app.use("/api/auth", authRouter);
+app.use("/api/admin", adminRouter);
 
 // Connect to Mongo then start server (single listen)
 const PORT = process.env.PORT || 4000;
+const RETENTION_SWEEP_INTERVAL_MS = Number(process.env.RETENTION_SWEEP_INTERVAL_MS ?? "60000");
 connectMongo()
   .then(() => {
+    if (Number.isFinite(RETENTION_SWEEP_INTERVAL_MS) && RETENTION_SWEEP_INTERVAL_MS > 0) {
+      setInterval(async () => {
+        try {
+          const sweepResult = await runExpiredConversationSweep();
+          if (sweepResult.expired_conversations_found > 0 || sweepResult.status !== "completed") {
+            log.info({ sweepResult }, "Retention sweep executed");
+          }
+        } catch (error) {
+          log.error({ error }, "Retention sweep failed");
+        }
+      }, RETENTION_SWEEP_INTERVAL_MS);
+    }
+
     app.listen(PORT, () => {
       log.info(`API listening on http://localhost:${PORT}`);
     });

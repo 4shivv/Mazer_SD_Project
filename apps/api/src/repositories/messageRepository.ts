@@ -25,3 +25,30 @@ export async function createMessageRecords(records: MessageRecordInput[]) {
 export async function listMessagesByConversationId(conversationId: string) {
   return Message.find({ conversation_id: conversationId }).sort({ timestamp: 1, _id: 1 });
 }
+
+export async function overwriteMessageContentByConversationIds(args: {
+  conversationIds: string[];
+  overwriteToken: string;
+}) {
+  if (args.conversationIds.length === 0) return 0;
+
+  const result = await Message.updateMany(
+    {
+      conversation_id: { $in: args.conversationIds },
+    },
+    {
+      $set: {
+        content: args.overwriteToken,
+        metadata: { wiped: true },
+      },
+    }
+  );
+
+  return result.modifiedCount ?? 0;
+}
+
+export async function deleteMessagesByConversationIds(conversationIds: string[]) {
+  if (conversationIds.length === 0) return 0;
+  const result = await Message.deleteMany({ conversation_id: { $in: conversationIds } });
+  return result.deletedCount ?? 0;
+}

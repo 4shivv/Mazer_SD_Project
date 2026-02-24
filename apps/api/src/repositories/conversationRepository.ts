@@ -3,6 +3,8 @@ import { Conversation } from "../models/Conversation.js";
 type CreateConversationInput = {
   userId: string;
   title?: string;
+  lastMessageAt?: Date;
+  selfDestructDate?: Date;
 };
 
 type ListConversationsInput = {
@@ -16,18 +18,30 @@ type TouchConversationInput = {
   userId: string;
   lastMessageAt: Date;
   incrementBy: number;
+  selfDestructDate?: Date;
 };
 
 export async function createConversationRecord(input: CreateConversationInput) {
-  return Conversation.create({
+  const payload: Record<string, unknown> = {
     user_id: input.userId,
     title: input.title?.trim() || "New chat",
-  });
+    last_message_at: input.lastMessageAt ?? new Date(),
+  };
+  if (input.selfDestructDate) {
+    payload.self_destruct_date = input.selfDestructDate;
+  }
+  return Conversation.create(payload as any);
 }
 
 export async function listConversationsByUser(input: ListConversationsInput) {
   const skip = (input.page - 1) * input.limit;
-  const query = { user_id: input.userId };
+  const query = {
+    user_id: input.userId,
+    $or: [
+      { self_destruct_date: null },
+      { self_destruct_date: { $gt: new Date() } },
+    ],
+  };
 
   const [rows, total] = await Promise.all([
     Conversation.find(query)
@@ -51,15 +65,20 @@ export async function findConversationByIdForUser(args: {
 }
 
 export async function touchConversationActivity(input: TouchConversationInput) {
+  const setPayload: Record<string, unknown> = {
+    last_message_at: input.lastMessageAt,
+  };
+  if (input.selfDestructDate) {
+    setPayload.self_destruct_date = input.selfDestructDate;
+  }
+
   return Conversation.findOneAndUpdate(
     {
       _id: input.conversationId,
       user_id: input.userId,
     },
     {
-      $set: {
-        last_message_at: input.lastMessageAt,
-      },
+      $set: setPayload,
       $inc: {
         message_count: input.incrementBy,
       },
@@ -86,4 +105,72 @@ export async function updateConversationTitleOnFirstMessage(args: {
       },
     }
   );
+}
+
+export async function listAllConversationIds() {
+  const rows = await Conversation.find({}, { _id: 1 });
+  return rows.map((row) => String((row as any)._id));
+}
+
+export async function applyRetentionDaysToAllConversations(retentionDays: number) {
+  const conversations = await Conversation.find({}, { _id: 1, last_message_at: 1 });
+  if (conversations.length === 0) return 0;
+
+  const dayMs = 24 * 60 * 60 * 1000;
+  const operations = conversations.map((conversation) => {
+    const doc = conversation as any;
+    const anchor = doc.last_message_at instanceof Date ? doc.last_message_at : new Date();
+    const selfDestructDate = new Date(anchor.getTime() + retentionDays * dayMs);
+
+    return {
+      updateOne: {
+        filter: { _id: doc._id },
+        update: { $set: { self_destruct_date: selfDestructDate } },
+      },
+    };
+  });
+
+  const result = await Conversation.bulkWrite(operations, { ordered: false });
+  return result.modifiedCount ?? conversations.length;
+}
+
+export async function listExpiredConversationIds(args: { now: Date; limit: number }) {
+  const rows = await Conversation.find(
+    {
+      self_destruct_date: {
+        $ne: null,
+        $lte: args.now,
+      },
+    },
+    { _id: 1 }
+  )
+    .sort({ self_destruct_date: 1, _id: 1 })
+    .limit(args.limit);
+
+  return rows.map((row) => String((row as any)._id));
+}
+
+export async function overwriteConversationFieldsByIds(args: {
+  conversationIds: string[];
+  overwriteToken: string;
+}) {
+  if (args.conversationIds.length === 0) return 0;
+
+  const result = await Conversation.updateMany(
+    { _id: { $in: args.conversationIds } },
+    {
+      $set: {
+        title: args.overwriteToken,
+        is_archived: true,
+      },
+    }
+  );
+
+  return result.modifiedCount ?? 0;
+}
+
+export async function deleteConversationsByIds(conversationIds: string[]) {
+  if (conversationIds.length === 0) return 0;
+  const result = await Conversation.deleteMany({ _id: { $in: conversationIds } });
+  return result.deletedCount ?? 0;
 }
