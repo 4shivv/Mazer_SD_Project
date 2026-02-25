@@ -40,6 +40,16 @@ export async function createUser(input: CreateUserInput) {
   return User.create(input);
 }
 
+export async function listPendingInstructors(args?: { limit?: number }) {
+  const limit = Math.max(1, Math.min(args?.limit ?? 100, 500));
+  return User.find({
+    role: "instructor",
+    instructorApprovalStatus: "pending",
+  })
+    .sort({ createdAt: -1 })
+    .limit(limit);
+}
+
 export async function updateInstructorApprovalStatus(args: {
   userId: string;
   status: InstructorApprovalStatus;

@@ -77,6 +77,54 @@ export type CreateConversationResponse = {
   created_at: string;
 };
 
+export type InstructorConfig = {
+  personality_prompt: string;
+  temperature: number;
+  max_tokens: number;
+  retrieval_threshold: number;
+  updated_at: string | null;
+};
+
+export type InstructorConfigResponse = {
+  config: InstructorConfig;
+};
+
+export type InstructorConfigUpdateResponse = {
+  config_updated: true;
+  config: InstructorConfig;
+};
+
+export type UpdateInstructorConfigPayload = Partial<Pick<
+  InstructorConfig,
+  "personality_prompt" | "temperature" | "max_tokens" | "retrieval_threshold"
+>>;
+
+export type RetentionPolicyUpdatePayload = {
+  default_retention_days: number;
+  apply_to_existing?: boolean;
+};
+
+export type RetentionPolicyUpdateResponse = {
+  policy_updated: true;
+  conversations_affected: number;
+  default_retention_days: number;
+};
+
+export type AdminWipePayload = {
+  wipe_conversations?: boolean;
+  wipe_embeddings?: boolean;
+  confirmation_code: string;
+};
+
+export type AdminWipeResponse = {
+  status: "completed" | "partial";
+  conversations_deleted: number;
+  embeddings_deleted: number;
+  storage_freed_gb: number;
+  wipe_audit: unknown;
+  errors: string[];
+};
+
 export async function createConversation(title = "New chat") {
   return api<CreateConversationResponse>("/api/conversations", {
     method: "POST",
@@ -100,5 +148,30 @@ export async function sendChat(prompt: string, conversationId: string) {
   return api<{ reply: string; conversation_id: string }>("/api/chat", {
     method: "POST",
     body: JSON.stringify({ prompt, conversation_id: conversationId }),
+  });
+}
+
+export async function getInstructorConfig() {
+  return api<InstructorConfigResponse>("/api/instructor/config");
+}
+
+export async function updateInstructorConfig(payload: UpdateInstructorConfigPayload) {
+  return api<InstructorConfigUpdateResponse>("/api/instructor/config", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateRetentionPolicy(payload: RetentionPolicyUpdatePayload) {
+  return api<RetentionPolicyUpdateResponse>("/api/admin/retention-policy", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function runAdminWipe(payload: AdminWipePayload) {
+  return api<AdminWipeResponse>("/api/admin/wipe", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }

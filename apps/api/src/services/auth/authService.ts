@@ -6,6 +6,7 @@ import {
   findUserById,
   findUserByIdentifier,
   findUserByUsernameOrEmail,
+  listPendingInstructors,
   updateInstructorApprovalStatus,
 } from "../../repositories/userRepository.js";
 import type { Role } from "../../models/User.js";
@@ -188,11 +189,31 @@ export async function logoutUser(token: string) {
   await deleteSessionByToken(token);
 }
 
-export async function approveInstructorAccount(args: { actorId: string; targetUserId: string }) {
-  const actor = await findUserById(args.actorId);
+async function assertAdminActor(actorId: string) {
+  const actor = await findUserById(actorId);
   if (!actor || actor.role !== "admin") {
     throw new AuthServiceError(403, "Admin only", "admin_only");
   }
+  return actor;
+}
+
+export async function listPendingInstructorAccounts(args: { actorId: string; limit?: number }) {
+  await assertAdminActor(args.actorId);
+  const docs = await listPendingInstructors({ limit: args.limit });
+  return {
+    users: docs.map((doc: any) => ({
+      id: doc._id.toString(),
+      email: doc.email ?? "",
+      username: doc.username,
+      role: doc.role as Role,
+      instructorApprovalStatus: doc.instructorApprovalStatus as "pending",
+      created_at: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : null,
+    })),
+  };
+}
+
+export async function approveInstructorAccount(args: { actorId: string; targetUserId: string }) {
+  const actor = await assertAdminActor(args.actorId);
 
   const target = await findUserById(args.targetUserId);
   if (!target) throw new AuthServiceError(404, "User not found", "user_not_found");

@@ -27,6 +27,7 @@ export default function Chat() {
   const location = useLocation();
   const { user, refresh } = useAuth();
   const isAdmin = user?.role === "admin";
+  const isInstructor = user?.role === "instructor";
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -240,7 +241,11 @@ export default function Chat() {
                   className={styles.menuItem}
                   onClick={() => {
                     setMenuOpen(false);
-                    alert("Settings coming soon");
+                    if (isInstructor) {
+                      navigate("/instructor/settings");
+                      return;
+                    }
+                    alert("Settings are available for instructor accounts.");
                   }}
                 >
                   Settings

@@ -15,6 +15,7 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const isInstructor = user?.role === "instructor";
 
   const [sessions, setSessions] = useState<ChatSessionMeta[]>([]);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -109,13 +110,25 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
           </button>
         </div>
 
+        {isInstructor && (
+          <>
+            <div className={styles.divider} />
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>Instructor</div>
+              <button className={styles.item} onClick={() => goTo("/instructor/settings")}>
+                Settings
+              </button>
+            </div>
+          </>
+        )}
+
         {isAdmin && (
           <>
             <div className={styles.divider} />
             <div className={styles.section}>
               <div className={styles.sectionTitle}>Admin</div>
               <button className={styles.item} onClick={() => goTo("/admin")}>
-                All Users
+                Admin Controls
               </button>
               <button
                 className={styles.item}

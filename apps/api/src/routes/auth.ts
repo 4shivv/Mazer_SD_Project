@@ -5,6 +5,7 @@ import {
   approveInstructorAccount,
   AuthServiceError,
   getUserFromSessionToken,
+  listPendingInstructorAccounts,
   loginUser,
   logoutUser,
   registerUser,
@@ -29,6 +30,10 @@ const LoginSchema = z.object({
 }).refine((data) => Boolean(data.identifier || data.email), {
   message: "identifier or email is required",
   path: ["identifier"],
+});
+
+const PendingInstructorsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(500).optional(),
 });
 
 const SESSION_MS = 24 * 60 * 60 * 1000;
@@ -105,6 +110,29 @@ authRouter.get("/me", async (req, res) => {
     return res.json({ user: u });
   } catch {
     return res.status(401).json({ error: "Invalid session" });
+  }
+});
+
+// GET /auth/instructors/pending
+authRouter.get("/instructors/pending", async (req, res) => {
+  const token = req.cookies?.session;
+  if (!token) return res.status(401).json({ error: "not_logged_in" });
+
+  const parsed = PendingInstructorsQuerySchema.safeParse(req.query ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  try {
+    const actor = await getUserFromSessionToken(token);
+    const result = await listPendingInstructorAccounts({
+      actorId: actor.id,
+      limit: parsed.data.limit,
+    });
+    return res.json(result);
+  } catch (error) {
+    if (error instanceof AuthServiceError) {
+      return res.status(error.status).json({ error: error.code, message: error.message });
+    }
+    return res.status(500).json({ error: "pending_instructor_list_failed" });
   }
 });
 
