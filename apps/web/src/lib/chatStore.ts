@@ -24,6 +24,11 @@ export function listSessions(): ChatSessionMeta[] {
   return readMeta().sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
+export function getLatestSession(): ChatSessionMeta | null {
+  const sessions = listSessions();
+  return sessions.length > 0 ? sessions[0] : null;
+}
+
 export function createSession(title = "New chat"): ChatSessionMeta {
   const meta = readMeta();
   const s: ChatSessionMeta = { id: uid(), title, updatedAt: Date.now() };
@@ -43,7 +48,7 @@ export function getMessages(sessionId: string): ChatMsg[] {
 export function saveMessages(sessionId: string, messages: ChatMsg[]) {
   localStorage.setItem(MSG_KEY_PREFIX + sessionId, JSON.stringify(messages));
   const meta = readMeta();
-  const idx = meta.findIndex(m => m.id === sessionId);
+  const idx = meta.findIndex((m) => m.id === sessionId);
   if (idx !== -1) {
     meta[idx] = { ...meta[idx], updatedAt: Date.now() };
     writeMeta(meta);
@@ -52,7 +57,7 @@ export function saveMessages(sessionId: string, messages: ChatMsg[]) {
 
 export function renameSession(sessionId: string, title: string) {
   const meta = readMeta();
-  const idx = meta.findIndex(m => m.id === sessionId);
+  const idx = meta.findIndex((m) => m.id === sessionId);
   if (idx !== -1) {
     meta[idx] = { ...meta[idx], title, updatedAt: Date.now() };
     writeMeta(meta);
@@ -60,7 +65,7 @@ export function renameSession(sessionId: string, title: string) {
 }
 
 export function deleteSession(sessionId: string) {
-  const meta = readMeta().filter(m => m.id !== sessionId);
+  const meta = readMeta().filter((m) => m.id !== sessionId);
   writeMeta(meta);
   localStorage.removeItem(MSG_KEY_PREFIX + sessionId);
 }

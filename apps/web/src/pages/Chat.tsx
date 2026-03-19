@@ -7,6 +7,7 @@ import * as Auth from "../lib/auth";
 import type { ChatMsg } from "../lib/chatStore";
 import {
   createSession,
+  getLatestSession,
   getMessages,
   renameSession,
   saveMessages,
@@ -34,7 +35,11 @@ export default function Chat() {
   const menuRef = useRef<HTMLDivElement>(null);
 
   const [messages, setMessages] = useState<Msg[]>([
-    { role: "assistant", text: "Welcome to Mazer. Ask anything to begin.", ts: Date.now() },
+    {
+      role: "assistant",
+      text: "Welcome to Mazer. Ask anything to begin.",
+      ts: Date.now(),
+    },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -47,9 +52,17 @@ export default function Chat() {
     return q.get("sid");
   }, [location.search]);
 
-  // Ensure session exists
+  // Ensure a valid session exists, but do not create a new one
+  // if a previous session already exists.
   useEffect(() => {
     if (sid) return;
+
+    const latest = getLatestSession();
+    if (latest) {
+      navigate(`/chat?sid=${encodeURIComponent(latest.id)}`, { replace: true });
+      return;
+    }
+
     const s = createSession("New chat");
     navigate(`/chat?sid=${encodeURIComponent(s.id)}`, { replace: true });
   }, [sid, navigate]);
@@ -57,14 +70,20 @@ export default function Chat() {
   // Load messages for session
   useEffect(() => {
     if (!sid) return;
+
     const stored = getMessages(sid).map(toMsg);
     if (stored.length > 0) {
       setMessages(stored);
     } else {
       setMessages([
-        { role: "assistant", text: "Welcome to Mazer. Ask anything to begin.", ts: Date.now() },
+        {
+          role: "assistant",
+          text: "Welcome to Mazer. Ask anything to begin.",
+          ts: Date.now(),
+        },
       ]);
     }
+
     setErrorBanner(null);
     setInput("");
     setLoading(false);
@@ -84,11 +103,13 @@ export default function Chat() {
   // Close menu on outside click
   useEffect(() => {
     if (!menuOpen) return;
+
     function onDocClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
       }
     }
+
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
   }, [menuOpen]);
@@ -115,7 +136,6 @@ export default function Chat() {
 
     setErrorBanner(null);
 
-    // Auto-title first user message
     if (sid) {
       const title =
         prompt.length > 40 ? prompt.slice(0, 40).trim() + "…" : prompt;
@@ -142,9 +162,7 @@ export default function Chat() {
     }
   }
 
-  function onComposerKeyDown(
-    e: React.KeyboardEvent<HTMLTextAreaElement>
-  ) {
+  function onComposerKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       onSend();
@@ -168,7 +186,6 @@ export default function Chat() {
       />
 
       <div className={styles.main}>
-        {/* Topbar */}
         <div className={styles.topbar}>
           <div className={styles.leftTop}>
             <button
@@ -228,12 +245,10 @@ export default function Chat() {
           </div>
         </div>
 
-        {/* Error banner */}
         {errorBanner && (
           <div className={styles.errorBanner}>{errorBanner}</div>
         )}
 
-        {/* Chat area */}
         <div className={styles.chatArea}>
           {messages.map((m, i) => (
             <div
@@ -265,7 +280,6 @@ export default function Chat() {
           <div ref={bottomRef} />
         </div>
 
-        {/* Composer */}
         <div className={styles.composer}>
           <div className={styles.inputRow}>
             <textarea
