@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
 import AuthCard from "../components/AuthCard";
@@ -12,12 +12,12 @@ export default function AdminUpload() {
   const [docs, setDocs] = useState<Doc[]>([]);
   const [dragging, setDragging] = useState(false);
 
-  // admin guard
   useEffect(() => {
-    if (!user || user.role !== "admin") nav("/chat", { replace: true });
+    if (!user || user.role !== "admin") {
+      nav("/chat", { replace: true });
+    }
   }, [user, nav]);
 
-  // load persisted docs
   useEffect(() => {
     setDocs(listDocs());
   }, []);
@@ -34,7 +34,6 @@ export default function AdminUpload() {
 
     const ids = newDocs.map((d) => d.id);
 
-    // fake processing
     setTimeout(() => {
       updateDocStatus(ids, "Processing");
       refresh();
@@ -51,13 +50,93 @@ export default function AdminUpload() {
     refresh();
   }
 
+  const totalDocs = docs.length;
+  const readyDocs = useMemo(
+    () => docs.filter((doc) => doc.status === "Ready").length,
+    [docs]
+  );
+  const processingDocs = useMemo(
+    () => docs.filter((doc) => doc.status === "Processing").length,
+    [docs]
+  );
+  const queuedDocs = useMemo(
+    () => docs.filter((doc) => doc.status === "Queued").length,
+    [docs]
+  );
+
   return (
-    <AuthCard title="Mazer Knowledge Base">
+    <AuthCard title="Knowledge Base Management">
       <p style={{ color: "var(--muted)", marginBottom: "1.5rem" }}>
-        Upload PDFs or text files to power the AI training knowledge base.
+        Upload and manage training documents used to support the Mazer knowledge base.
       </p>
 
-      {/* drop zone */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+          gap: "0.75rem",
+          marginBottom: "1.5rem",
+        }}
+      >
+        <div
+          style={{
+            padding: "1rem",
+            borderRadius: "10px",
+            background: "rgba(107,92,255,0.1)",
+            textAlign: "left",
+          }}
+        >
+          <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+            Total Documents
+          </div>
+          <div style={{ fontSize: "1.4rem", fontWeight: 700 }}>{totalDocs}</div>
+        </div>
+
+        <div
+          style={{
+            padding: "1rem",
+            borderRadius: "10px",
+            background: "rgba(107,92,255,0.1)",
+            textAlign: "left",
+          }}
+        >
+          <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+            Ready
+          </div>
+          <div style={{ fontSize: "1.4rem", fontWeight: 700 }}>{readyDocs}</div>
+        </div>
+
+        <div
+          style={{
+            padding: "1rem",
+            borderRadius: "10px",
+            background: "rgba(107,92,255,0.1)",
+            textAlign: "left",
+          }}
+        >
+          <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+            Processing
+          </div>
+          <div style={{ fontSize: "1.4rem", fontWeight: 700 }}>
+            {processingDocs}
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: "1rem",
+            borderRadius: "10px",
+            background: "rgba(107,92,255,0.1)",
+            textAlign: "left",
+          }}
+        >
+          <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+            Queued
+          </div>
+          <div style={{ fontSize: "1.4rem", fontWeight: 700 }}>{queuedDocs}</div>
+        </div>
+      </div>
+
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -79,12 +158,17 @@ export default function AdminUpload() {
           transition: "0.2s",
         }}
       >
+        <div style={{ marginBottom: "0.75rem", fontWeight: 600 }}>
+          Upload Training Documents
+        </div>
         <div style={{ marginBottom: "1rem", color: "var(--muted)" }}>
-          Drag & drop documents here
+          Drag and drop PDF, TXT, DOC, or DOCX files here to stage them for the
+          knowledge base.
         </div>
 
         <label
           style={{
+            display: "inline-block",
             padding: "0.6rem 1.2rem",
             background: "#6b5cff",
             color: "#fff",
@@ -103,9 +187,18 @@ export default function AdminUpload() {
         </label>
       </div>
 
-      {/* doc list */}
       {docs.length > 0 ? (
         <div style={{ marginBottom: "1.5rem" }}>
+          <div
+            style={{
+              marginBottom: "0.75rem",
+              fontWeight: 600,
+              textAlign: "left",
+            }}
+          >
+            Uploaded Documents
+          </div>
+
           {docs.map((doc) => (
             <div
               key={doc.id}
@@ -113,6 +206,7 @@ export default function AdminUpload() {
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
+                gap: "1rem",
                 padding: "0.75rem 1rem",
                 border: "1px solid rgba(255,255,255,0.08)",
                 borderRadius: "10px",
@@ -120,10 +214,10 @@ export default function AdminUpload() {
                 background: "rgba(10,11,16,0.35)",
               }}
             >
-              <div>
+              <div style={{ textAlign: "left" }}>
                 <div style={{ fontWeight: 600 }}>{doc.name}</div>
                 <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-                  {(doc.size / 1024).toFixed(1)} KB • {doc.status}
+                  {(doc.size / 1024).toFixed(1)} KB • Status: {doc.status}
                 </div>
               </div>
 
@@ -134,8 +228,9 @@ export default function AdminUpload() {
                   background: "transparent",
                   color: "var(--muted)",
                   borderRadius: "8px",
-                  padding: "0.4rem 0.8rem",
+                  padding: "0.45rem 0.85rem",
                   cursor: "pointer",
+                  flexShrink: 0,
                 }}
               >
                 Delete
@@ -144,26 +239,54 @@ export default function AdminUpload() {
           ))}
         </div>
       ) : (
-        <div style={{ color: "var(--muted)", marginBottom: "1.5rem" }}>
-          No documents uploaded yet.
+        <div
+          style={{
+            color: "var(--muted)",
+            marginBottom: "1.5rem",
+            padding: "1rem",
+            borderRadius: "10px",
+            background: "rgba(255,255,255,0.03)",
+            textAlign: "left",
+          }}
+        >
+          No documents have been uploaded yet. Add training materials here so the
+          platform can prepare them for future knowledge base integration.
         </div>
       )}
 
-      <button
-        onClick={() => nav(-1)}
-        style={{
-          display: "block",
-          width: "100%",
-          padding: "0.75rem",
-          backgroundColor: "#6b5cff",
-          color: "white",
-          border: "none",
-          borderRadius: "8px",
-          cursor: "pointer",
-        }}
-      >
-        Back to Chat
-      </button>
+      <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+        <button
+          onClick={() => nav("/admin")}
+          style={{
+            flex: 1,
+            minWidth: "160px",
+            padding: "0.75rem",
+            backgroundColor: "#3b3b3b",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            cursor: "pointer",
+          }}
+        >
+          Back to Admin Controls
+        </button>
+
+        <button
+          onClick={() => nav("/chat")}
+          style={{
+            flex: 1,
+            minWidth: "160px",
+            padding: "0.75rem",
+            backgroundColor: "#6b5cff",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            cursor: "pointer",
+          }}
+        >
+          Go to Chat
+        </button>
+      </div>
     </AuthCard>
   );
 }
