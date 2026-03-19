@@ -4,17 +4,33 @@ import styles from "./RoleSelect.module.css";
 
 export default function RoleSelect() {
   const nav = useNavigate();
+
   return (
     <AuthCard title="Mazer" subtitle="Select your role to begin">
       <div className={styles.stack}>
-        <button className={styles.primary} onClick={() => nav("/login/instructor")}>
+        <button
+          className={styles.primary}
+          onClick={() => nav("/login/instructor")}
+        >
           I’m an Instructor
         </button>
-        <button className={styles.primary} onClick={() => nav("/login/trainee")}>
+
+        <button
+          className={styles.primary}
+          onClick={() => nav("/login/trainee")}
+        >
           I’m a Trainee
         </button>
+
         <button className={styles.link} onClick={() => nav("/register")}>
           Create an account
+        </button>
+
+        <button
+          className={styles.link}
+          onClick={() => nav("/login/instructor")}
+        >
+          Admin access
         </button>
       </div>
     </AuthCard>
