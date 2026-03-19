@@ -13,11 +13,14 @@ type Props = {
 export default function Sidebar({ open, onClose, onNewChat }: Props) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+
+  const role = user?.role;
+  const isAdmin = role === "admin";
+  const isInstructor = role === "instructor";
+  const isTrainee = role === "trainee";
 
   const [sessions, setSessions] = useState(() => listSessions());
 
-  // Refresh session list when sidebar opens (and on storage changes across tabs)
   useEffect(() => {
     if (open) setSessions(listSessions());
 
@@ -27,6 +30,7 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
         setSessions(listSessions());
       }
     }
+
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, [open]);
@@ -42,7 +46,6 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
   }
 
   function handleDelete(sessionId: string) {
-    // optional confirm (prevents accidental deletes)
     const ok = confirm("Delete this chat? This cannot be undone.");
     if (!ok) return;
 
@@ -52,7 +55,6 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
 
   return (
     <>
-      {/* Mobile overlay */}
       <div
         className={`${styles.backdrop} ${open ? styles.backdropOpen : ""}`}
         onClick={onClose}
@@ -75,8 +77,6 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
             className={styles.item}
             onClick={() => {
               onNewChat();
-              // sidebar will be closed by Chat.tsx after navigation,
-              // but we still close here for immediate UX
               onClose();
               setTimeout(() => setSessions(listSessions()), 50);
             }}
@@ -88,25 +88,37 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
             className={styles.item}
             onClick={() => alert("Search coming soon")}
           >
-            Search chats
+            Search Chats
           </button>
 
-          {!isAdmin && (
+          <button className={styles.item} onClick={() => goTo("/library")}>
+            Library
+          </button>
+
+          {(isTrainee || isInstructor) && (
             <button
               className={styles.item}
-              onClick={() => alert("Upload coming soon")}
+              onClick={() => alert("Document upload flow coming soon")}
             >
               Upload Documents
             </button>
           )}
-
-          <button
-            className={styles.item}
-            onClick={() => goTo("/library")}
-          >
-            Library
-          </button>
         </div>
+
+        {isInstructor && !isAdmin && (
+          <>
+            <div className={styles.divider} />
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>Instructor</div>
+              <button
+                className={styles.item}
+                onClick={() => alert("Instructor tools coming soon")}
+              >
+                Instructor Tools
+              </button>
+            </div>
+          </>
+        )}
 
         {isAdmin && (
           <>
@@ -114,13 +126,13 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
             <div className={styles.section}>
               <div className={styles.sectionTitle}>Admin</div>
               <button className={styles.item} onClick={() => goTo("/admin")}>
-                All Users
+                Admin Controls
               </button>
               <button
                 className={styles.item}
                 onClick={() => goTo("/admin/upload")}
               >
-                Mazer Knowledge Base
+                Manage Knowledge Base
               </button>
             </div>
           </>
