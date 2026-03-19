@@ -4,6 +4,7 @@ import { RequireAuth } from "./RequireAuth";
 import { RequireRole } from "./RequireRole";
 import LoginTrainee from "../pages/LoginTrainee";
 import LoginInstructor from "../pages/LoginInstructor";
+import LoginAdmin from "../pages/LoginAdmin";
 import Register from "../pages/Register";
 import Admin from "../pages/Admin";
 import AdminUpload from "../pages/AdminUpload";
@@ -15,6 +16,7 @@ export const router = createBrowserRouter([
   { path: "/", element: <Home /> },
   { path: "/login/trainee", element: <LoginTrainee /> },
   { path: "/login/instructor", element: <LoginInstructor /> },
+  { path: "/login/admin", element: <LoginAdmin /> },
   { path: "/register", element: <Register /> },
 
   {

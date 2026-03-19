@@ -26,10 +26,7 @@ export default function RoleSelect() {
           Create an account
         </button>
 
-        <button
-          className={styles.link}
-          onClick={() => nav("/login/instructor")}
-        >
+        <button className={styles.link} onClick={() => nav("/login/admin")}>
           Admin access
         </button>
       </div>
