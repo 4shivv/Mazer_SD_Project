@@ -16,25 +16,130 @@ export default function Admin() {
     }
   }
 
+  function handleResetMemory() {
+    alert("Memory reset endpoint not connected yet.");
+  }
+
+  function handleClearKnowledgeBase() {
+    alert("Knowledge base reset endpoint not connected yet.");
+  }
+
   return (
-    <AuthCard title="Admin Panel">
+    <AuthCard title="Admin Controls">
       <p style={{ marginBottom: "1rem", color: "var(--muted)" }}>
-        You can also open the sidebar (☰) on the Chat page and use <strong>All Users</strong> or <strong>Mazer Knowledge Base</strong>.
+        Manage system-level training controls, reset actions, and knowledge base administration.
       </p>
+
       <div style={{ textAlign: "left", marginBottom: "1.5rem" }}>
-        <p><strong>Admin User:</strong> {user?.email}</p>
-        <p><strong>Role:</strong> {user?.role}</p>
+        <p>
+          <strong>Admin User:</strong> {user?.email}
+        </p>
+        <p>
+          <strong>Role:</strong> {user?.role}
+        </p>
       </div>
-      <div style={{ marginBottom: "1.5rem", padding: "1rem", backgroundColor: "rgba(107, 92, 255, 0.1)", borderRadius: "8px" }}>
-        <p style={{ margin: "0.5rem 0" }}>Admin features coming soon:</p>
-        <ul style={{ marginTop: "0.5rem", paddingLeft: "1.5rem" }}>
-          <li>User management</li>
-          <li>System settings</li>
-          <li>Analytics & reports</li>
-        </ul>
+
+      <div
+        style={{
+          display: "grid",
+          gap: "1rem",
+          marginBottom: "1.5rem",
+        }}
+      >
+        <div
+          style={{
+            padding: "1rem",
+            backgroundColor: "rgba(107, 92, 255, 0.1)",
+            borderRadius: "8px",
+            textAlign: "left",
+          }}
+        >
+          <h3 style={{ marginTop: 0, marginBottom: "0.75rem" }}>
+            Conversation Controls
+          </h3>
+          <p style={{ marginTop: 0, marginBottom: "1rem", color: "var(--muted)" }}>
+            Reset active training memory and prepare the system for a fresh session.
+          </p>
+          <button
+            onClick={handleResetMemory}
+            style={{
+              padding: "0.75rem 1rem",
+              backgroundColor: "#6b5cff",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+            }}
+          >
+            Reset Memory
+          </button>
+        </div>
+
+        <div
+          style={{
+            padding: "1rem",
+            backgroundColor: "rgba(107, 92, 255, 0.1)",
+            borderRadius: "8px",
+            textAlign: "left",
+          }}
+        >
+          <h3 style={{ marginTop: 0, marginBottom: "0.75rem" }}>
+            Knowledge Base Controls
+          </h3>
+          <p style={{ marginTop: 0, marginBottom: "1rem", color: "var(--muted)" }}>
+            Clear or manage uploaded training documents and system knowledge.
+          </p>
+
+          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+            <button
+              onClick={handleClearKnowledgeBase}
+              style={{
+                padding: "0.75rem 1rem",
+                backgroundColor: "#6b5cff",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+              }}
+            >
+              Clear Knowledge Base
+            </button>
+
+            <button
+              onClick={() => nav("/admin/upload")}
+              style={{
+                padding: "0.75rem 1rem",
+                backgroundColor: "#3b3b3b",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+              }}
+            >
+              Manage Uploads
+            </button>
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: "1rem",
+            backgroundColor: "rgba(107, 92, 255, 0.1)",
+            borderRadius: "8px",
+            textAlign: "left",
+          }}
+        >
+          <h3 style={{ marginTop: 0, marginBottom: "0.75rem" }}>
+            System Status
+          </h3>
+          <p style={{ margin: 0, color: "var(--muted)" }}>
+            Frontend admin controls are ready. Backend reset endpoints can be connected next.
+          </p>
+        </div>
       </div>
+
       <button
-        onClick={() => nav(-1)}
+        onClick={() => nav("/chat")}
         style={{
           display: "block",
           width: "100%",
@@ -49,6 +154,7 @@ export default function Admin() {
       >
         Go to Chat
       </button>
+
       <button
         onClick={logout}
         style={{
