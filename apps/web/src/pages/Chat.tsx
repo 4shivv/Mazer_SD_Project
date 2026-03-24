@@ -7,11 +7,13 @@ import * as Auth from "../lib/auth";
 import type { ChatMsg } from "../lib/chatStore";
 import {
   createSession,
+  getLatestSession,
   getMessages,
 } from "../lib/chatStore";
 import styles from "./Chat.module.css";
 
 type Msg = { role: "user" | "assistant"; text: string; ts?: number };
+
 const WELCOME_MESSAGE: Msg = {
   role: "assistant",
   text: "Welcome to Mazer. Ask anything to begin.",
@@ -45,12 +47,19 @@ export default function Chat() {
     return q.get("sid");
   }, [location.search]);
 
-  // Ensure session exists
   useEffect(() => {
     if (sid) return;
+
     let cancelled = false;
     (async () => {
       try {
+        const latest = await getLatestSession();
+        if (cancelled) return;
+        if (latest) {
+          navigate(`/chat?sid=${encodeURIComponent(latest.id)}`, { replace: true });
+          return;
+        }
+
         const session = await createSession("New chat");
         if (!cancelled) {
           navigate(`/chat?sid=${encodeURIComponent(session.id)}`, { replace: true });
@@ -61,21 +70,21 @@ export default function Chat() {
         }
       }
     })();
+
     return () => {
       cancelled = true;
     };
   }, [sid, navigate]);
 
-  // Load messages for session
   useEffect(() => {
     if (!sid) return;
+
     let cancelled = false;
     (async () => {
       try {
         const stored = (await getMessages(sid)).map(toMsg);
         if (cancelled) return;
-        if (stored.length > 0) setMessages(stored);
-        else setMessages([WELCOME_MESSAGE]);
+        setMessages(stored.length > 0 ? stored : [WELCOME_MESSAGE]);
         setErrorBanner(null);
       } catch (error: any) {
         if (cancelled) return;
@@ -88,24 +97,25 @@ export default function Chat() {
         }
       }
     })();
+
     return () => {
       cancelled = true;
     };
   }, [sid]);
 
-  // Auto-scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  // Close menu on outside click
   useEffect(() => {
     if (!menuOpen) return;
+
     function onDocClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
       }
     }
+
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
   }, [menuOpen]);
@@ -172,12 +182,10 @@ export default function Chat() {
     }
   }
 
-  function onComposerKeyDown(
-    e: React.KeyboardEvent<HTMLTextAreaElement>
-  ) {
+  function onComposerKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      onSend();
+      void onSend();
     }
   }
 
@@ -198,7 +206,6 @@ export default function Chat() {
       />
 
       <div className={styles.main}>
-        {/* Topbar */}
         <div className={styles.topbar}>
           <div className={styles.leftTop}>
             <button
@@ -253,7 +260,9 @@ export default function Chat() {
                 <button
                   type="button"
                   className={styles.menuItem}
-                  onClick={handleLogout}
+                  onClick={() => {
+                    void handleLogout();
+                  }}
                 >
                   Log Out
                 </button>
@@ -262,12 +271,10 @@ export default function Chat() {
           </div>
         </div>
 
-        {/* Error banner */}
         {errorBanner && (
           <div className={styles.errorBanner}>{errorBanner}</div>
         )}
 
-        {/* Chat area */}
         <div className={styles.chatArea}>
           {messages.map((m, i) => (
             <div
@@ -281,7 +288,7 @@ export default function Chat() {
               {m.role === "assistant" && m.text?.trim() && (
                 <button
                   className={styles.copyBtn}
-                  onClick={() => copy(m.text)}
+                  onClick={() => void copy(m.text)}
                   title="Copy"
                 >
                   Copy
@@ -299,7 +306,6 @@ export default function Chat() {
           <div ref={bottomRef} />
         </div>
 
-        {/* Composer */}
         <div className={styles.composer}>
           <div className={styles.inputRow}>
             <textarea
@@ -312,7 +318,7 @@ export default function Chat() {
             />
             <button
               className={styles.send}
-              onClick={onSend}
+              onClick={() => void onSend()}
               disabled={loading || !input.trim()}
             >
               {loading ? "Sending…" : "Send"}

@@ -14,8 +14,11 @@ type Props = {
 export default function Sidebar({ open, onClose, onNewChat }: Props) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
-  const isInstructor = user?.role === "instructor";
+
+  const role = user?.role;
+  const isAdmin = role === "admin";
+  const isInstructor = role === "instructor";
+  const isTrainee = role === "trainee";
 
   const [sessions, setSessions] = useState<ChatSessionMeta[]>([]);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -35,7 +38,9 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
   }
 
   useEffect(() => {
-    void refreshSessions();
+    if (open) {
+      void refreshSessions();
+    }
   }, [open]);
 
   function goTo(path: string) {
@@ -49,12 +54,11 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
   }
 
   function handleDelete() {
-    alert("Delete chat is not available in this slice yet.");
+    alert("Delete chat is not available yet for persisted conversations.");
   }
 
   return (
     <>
-      {/* Mobile overlay */}
       <div
         className={`${styles.backdrop} ${open ? styles.backdropOpen : ""}`}
         onClick={onClose}
@@ -90,32 +94,32 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
             className={styles.item}
             onClick={() => alert("Search coming soon")}
           >
-            Search chats
+            Search Chats
           </button>
 
-          {!isAdmin && (
+          <button className={styles.item} onClick={() => goTo("/library")}>
+            Library
+          </button>
+
+          {(isTrainee || isInstructor) && (
             <button
               className={styles.item}
-              onClick={() => alert("Upload coming soon")}
+              onClick={() => alert("Document upload flow coming soon")}
             >
               Upload Documents
             </button>
           )}
-
-          <button
-            className={styles.item}
-            onClick={() => goTo("/library")}
-          >
-            Library
-          </button>
         </div>
 
-        {isInstructor && (
+        {isInstructor && !isAdmin && (
           <>
             <div className={styles.divider} />
             <div className={styles.section}>
               <div className={styles.sectionTitle}>Instructor</div>
-              <button className={styles.item} onClick={() => goTo("/instructor/settings")}>
+              <button
+                className={styles.item}
+                onClick={() => goTo("/instructor/settings")}
+              >
                 Settings
               </button>
             </div>
@@ -134,7 +138,7 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
                 className={styles.item}
                 onClick={() => goTo("/admin/upload")}
               >
-                Mazer Knowledge Base
+                Manage Knowledge Base
               </button>
             </div>
           </>
@@ -148,7 +152,7 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
           {historyError && <div className={styles.emptyHistory}>{historyError}</div>}
           {loadingHistory && <div className={styles.emptyHistory}>Loading chats...</div>}
 
-          {sessions.length === 0 ? (
+          {!loadingHistory && sessions.length === 0 ? (
             <div className={styles.emptyHistory}>No chats yet.</div>
           ) : (
             sessions.slice(0, 15).map((s) => (
@@ -164,7 +168,7 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
                 <button
                   className={styles.deleteBtn}
                   title="Delete chat"
-                  onClick={() => handleDelete()}
+                  onClick={handleDelete}
                 >
                   ✕
                 </button>

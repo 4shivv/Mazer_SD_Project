@@ -1,8 +1,18 @@
 import { api } from "./api";
 
 export type Role = "trainee" | "instructor" | "admin";
-export type AuthUser = { id: string; username: string; email: string; role: Role };
-export type MeResponse = { user: AuthUser };
+
+export type AuthUser = {
+  id: string;
+  username: string;
+  email: string;
+  role: Role;
+};
+
+export type MeResponse = {
+  user: AuthUser;
+};
+
 export type RegisterResponse = {
   pendingApproval: boolean;
   message?: string;
@@ -22,18 +32,34 @@ export type PendingInstructorsResponse = {
   users: PendingInstructor[];
 };
 
+function buildIdentityPayload(identifier: string) {
+  const trimmed = identifier.trim();
+  if (trimmed.includes("@")) {
+    return { email: trimmed };
+  }
+  return { username: trimmed };
+}
+
 export function login(identifier: string, password: string) {
   return api<MeResponse>("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({ identifier, password }),
+    body: JSON.stringify({
+      ...(identifier.includes("@")
+        ? { email: identifier.trim() }
+        : { identifier: identifier.trim() }),
+      password,
+    }),
   });
 }
 
-export function register(username: string, password: string, role: "trainee" | "instructor" = "trainee") {
-  const body = { username, password, role };
+export function register(identifier: string, password: string, role: "trainee" | "instructor" = "trainee") {
   return api<RegisterResponse>("/api/auth/register", {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      ...buildIdentityPayload(identifier),
+      password,
+      role,
+    }),
   });
 }
 
@@ -42,7 +68,9 @@ export function me() {
 }
 
 export function logout() {
-  return api<{ ok: true }>("/api/auth/logout", { method: "POST" });
+  return api<{ ok: true }>("/api/auth/logout", {
+    method: "POST",
+  });
 }
 
 export function approveInstructor(targetUserId: string) {

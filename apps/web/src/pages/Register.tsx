@@ -10,7 +10,8 @@ type AccountType = "trainee" | "instructor";
 export default function Register() {
   const nav = useNavigate();
   const { setUser } = useAuth();
-  const [username, setUsername] = useState("");
+
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [accountType, setAccountType] = useState<AccountType>("trainee");
   const [error, setError] = useState("");
@@ -22,21 +23,22 @@ export default function Register() {
     setError("");
     setNotice("");
     setLoading(true);
+
     try {
-      const res = await Auth.register(username, password, accountType);
+      const res = await Auth.register(identifier, password, accountType);
       if (res.pendingApproval) {
         setUser(null);
         setNotice(res.message || "Instructor account created. Await admin approval.");
         nav("/login/instructor", { replace: true });
       } else if (res.user) {
         setUser(res.user);
-        nav("/chat", { replace: true });
+        nav(res.user.role === "admin" ? "/admin" : "/chat", { replace: true });
       }
     } catch (err: any) {
       if (err?.message === "admin_self_register_forbidden") {
         setError("Admin self-registration is disabled.");
       } else {
-      setError(err.message || "Registration failed");
+        setError(err?.message || "Registration failed");
       }
     } finally {
       setLoading(false);
@@ -47,8 +49,10 @@ export default function Register() {
     <AuthCard title="Create Account">
       {error && <div style={{ color: "#ff6b6b", marginBottom: "1rem" }}>{error}</div>}
       {notice && <div style={{ color: "#3ddc97", marginBottom: "1rem" }}>{notice}</div>}
+
       <form className={styles.form} onSubmit={handleRegister}>
         <label className={styles.roleLabel}>Account type</label>
+
         <div className={styles.roleGroup}>
           <button
             type="button"
@@ -58,6 +62,7 @@ export default function Register() {
           >
             Trainee
           </button>
+
           <button
             type="button"
             className={styles.roleBtn}
@@ -67,15 +72,17 @@ export default function Register() {
             Instructor
           </button>
         </div>
+
         <input
           className={styles.field}
-          placeholder="Username"
+          placeholder="Email or username"
           type="text"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
           autoComplete="username"
           required
         />
+
         <input
           className={styles.field}
           placeholder="Password"
@@ -84,12 +91,32 @@ export default function Register() {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
+
         <button className={styles.submit} type="submit" disabled={loading}>
           {loading ? "Creating..." : "Create Account"}
         </button>
       </form>
+
       <p style={{ marginTop: "1rem", textAlign: "center", fontSize: "0.9rem" }}>
-        Already have an account? <a onClick={() => nav("/")} style={{ cursor: "pointer", color: "#6b5cff" }}>Sign in</a>
+        Admin accounts are provisioned separately.{" "}
+        <button
+          type="button"
+          className={styles.registerLink}
+          onClick={() => nav("/login/admin")}
+        >
+          Admin login
+        </button>
+      </p>
+
+      <p style={{ marginTop: "0.5rem", textAlign: "center", fontSize: "0.9rem" }}>
+        Already have an account?{" "}
+        <button
+          type="button"
+          className={styles.registerLink}
+          onClick={() => nav("/")}
+        >
+          Sign in
+        </button>
       </p>
     </AuthCard>
   );

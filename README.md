@@ -1,21 +1,23 @@
 # Mazer SD Project
 
+Mazer is a secure, offline AI assistant built with React, Node.js, MongoDB, ChromaDB, Docker, and a locally hosted LLaMA model via Ollama.
+
 ## Prerequisites
 
 - Node.js `20+`
 - npm `10+`
 - Docker Desktop (or Docker Engine + Compose plugin)
 
-## Quick Start (Recommended: Docker for backend services)
+## Quick Start
 
-From repo root:
+From the repo root:
 
 ```bash
 docker compose up --build -d
 docker compose exec ollama ollama pull llama3:8b
 ```
 
-Start frontend:
+Start the frontend:
 
 ```bash
 cd apps/web
@@ -28,9 +30,7 @@ Open:
 - Web: `http://localhost:5173`
 - API health: `http://localhost:4000/health`
 
-## Local API Mode (Optional)
-
-Use this if you want to run `apps/api` directly on your machine.
+## Local API Mode
 
 Start only infra dependencies in Docker:
 
@@ -38,7 +38,7 @@ Start only infra dependencies in Docker:
 docker compose up -d mongo ollama chroma
 ```
 
-Run API locally:
+Run the API locally:
 
 ```bash
 cd apps/api
@@ -47,7 +47,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Run frontend:
+Run the frontend:
 
 ```bash
 cd apps/web
@@ -56,8 +56,6 @@ npm run dev
 ```
 
 ## Useful Commands
-
-From repo root:
 
 ```bash
 docker compose ps
@@ -75,4 +73,4 @@ cd ../web && npm run build
 ## Notes
 
 - Frontend proxies `/api` to `http://localhost:4000` via Vite config.
-- If you skip `ollama pull`, signup/login can still work, but `/api/chat` will fail until a model is pulled.
+- If you skip `ollama pull`, signup and login still work, but `/api/chat` will fail until a model is pulled.

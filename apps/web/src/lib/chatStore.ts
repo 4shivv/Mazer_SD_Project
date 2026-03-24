@@ -21,6 +21,11 @@ export async function listSessions(): Promise<ChatSessionMeta[]> {
   return response.conversations.map(toSessionMeta);
 }
 
+export async function getLatestSession(): Promise<ChatSessionMeta | null> {
+  const sessions = await listSessions();
+  return sessions.length > 0 ? sessions[0] : null;
+}
+
 export async function createSession(title = "New chat"): Promise<ChatSessionMeta> {
   const created = await createConversation(title);
   return {

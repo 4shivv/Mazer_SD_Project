@@ -40,7 +40,6 @@ export default function Admin() {
       const result = await Auth.listPendingInstructors(200);
       setPendingInstructors(result.users);
     } catch {
-      // keep the rest of the admin panel usable even if pending list fails.
       setPendingInstructors([]);
     } finally {
       setPendingLoading(false);
@@ -160,6 +159,10 @@ export default function Admin() {
 
   return (
     <AuthCard title="Admin Controls">
+      <p style={{ marginBottom: "1rem", color: "var(--muted)" }}>
+        Manage instructor approvals, retention policy, knowledge base administration, and destructive data controls.
+      </p>
+
       {error && <div style={{ color: "#ff6b6b", marginBottom: "1rem" }}>{error}</div>}
       {notice && <div style={{ color: "#3ddc97", marginBottom: "1rem" }}>{notice}</div>}
 
@@ -250,6 +253,26 @@ export default function Admin() {
             Approved: <strong>{approvedUsername}</strong>
           </p>
         )}
+      </section>
+
+      <section style={{ marginBottom: "1.5rem" }}>
+        <h3 style={{ marginBottom: "0.5rem" }}>Knowledge Base Controls</h3>
+        <p style={{ marginTop: 0, marginBottom: "1rem", color: "var(--muted)" }}>
+          Manage uploaded training documents from the dedicated admin upload page.
+        </p>
+        <button
+          onClick={() => nav("/admin/upload")}
+          style={{
+            padding: "0.75rem 1rem",
+            backgroundColor: "#3b3b3b",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            cursor: "pointer",
+          }}
+        >
+          Manage Uploads
+        </button>
       </section>
 
       <section style={{ marginBottom: "1.5rem" }}>
