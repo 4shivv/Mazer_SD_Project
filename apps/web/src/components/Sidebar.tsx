@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
 import styles from "./Sidebar.module.css";
-import { deleteSession, listSessions } from "../lib/chatStore";
+import { listSessions } from "../lib/chatStore";
+import type { ChatSessionMeta } from "../lib/chatStore";
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  onNewChat: () => void;
+  onNewChat: () => Promise<void> | void;
 };
 
 export default function Sidebar({ open, onClose, onNewChat }: Props) {
@@ -19,20 +20,27 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
   const isInstructor = role === "instructor";
   const isTrainee = role === "trainee";
 
-  const [sessions, setSessions] = useState(() => listSessions());
+  const [sessions, setSessions] = useState<ChatSessionMeta[]>([]);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  async function refreshSessions() {
+    setLoadingHistory(true);
+    try {
+      const next = await listSessions();
+      setSessions(next);
+      setHistoryError(null);
+    } catch (error: any) {
+      setHistoryError(error?.message || "Failed to load chats");
+    } finally {
+      setLoadingHistory(false);
+    }
+  }
 
   useEffect(() => {
-    if (open) setSessions(listSessions());
-
-    function onStorage(e: StorageEvent) {
-      if (!e.key) return;
-      if (e.key.startsWith("mazer.chat.sessions.")) {
-        setSessions(listSessions());
-      }
+    if (open) {
+      void refreshSessions();
     }
-
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
   }, [open]);
 
   function goTo(path: string) {
@@ -45,12 +53,8 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
     onClose();
   }
 
-  function handleDelete(sessionId: string) {
-    const ok = confirm("Delete this chat? This cannot be undone.");
-    if (!ok) return;
-
-    deleteSession(sessionId);
-    setSessions(listSessions());
+  function handleDelete() {
+    alert("Delete chat is not available yet for persisted conversations.");
   }
 
   return (
@@ -76,9 +80,11 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
           <button
             className={styles.item}
             onClick={() => {
-              onNewChat();
-              onClose();
-              setTimeout(() => setSessions(listSessions()), 50);
+              void (async () => {
+                await onNewChat();
+                onClose();
+                await refreshSessions();
+              })();
             }}
           >
             New Chat
@@ -112,9 +118,9 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
               <div className={styles.sectionTitle}>Instructor</div>
               <button
                 className={styles.item}
-                onClick={() => alert("Instructor tools coming soon")}
+                onClick={() => goTo("/instructor/settings")}
               >
-                Instructor Tools
+                Settings
               </button>
             </div>
           </>
@@ -143,7 +149,10 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
         <div className={styles.section}>
           <div className={styles.sectionTitle}>History</div>
 
-          {sessions.length === 0 ? (
+          {historyError && <div className={styles.emptyHistory}>{historyError}</div>}
+          {loadingHistory && <div className={styles.emptyHistory}>Loading chats...</div>}
+
+          {!loadingHistory && sessions.length === 0 ? (
             <div className={styles.emptyHistory}>No chats yet.</div>
           ) : (
             sessions.slice(0, 15).map((s) => (
@@ -159,7 +168,7 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
                 <button
                   className={styles.deleteBtn}
                   title="Delete chat"
-                  onClick={() => handleDelete(s.id)}
+                  onClick={handleDelete}
                 >
                   ✕
                 </button>

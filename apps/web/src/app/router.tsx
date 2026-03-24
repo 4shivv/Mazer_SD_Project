@@ -11,6 +11,7 @@ import AdminUpload from "../pages/AdminUpload";
 import Chat from "../pages/Chat";
 import Dashboard from "../pages/Dashboard";
 import Library from "../pages/Library";
+import InstructorSettings from "../pages/InstructorSettings";
 
 export const router = createBrowserRouter([
   { path: "/", element: <Home /> },
@@ -18,14 +19,16 @@ export const router = createBrowserRouter([
   { path: "/login/instructor", element: <LoginInstructor /> },
   { path: "/login/admin", element: <LoginAdmin /> },
   { path: "/register", element: <Register /> },
-
   {
     element: <RequireAuth />,
     children: [
       { path: "/dashboard", element: <Dashboard /> },
       { path: "/chat", element: <Chat /> },
       { path: "/library", element: <Library /> },
-
+      {
+        element: <RequireRole allowedRoles={["instructor"]} />,
+        children: [{ path: "/instructor/settings", element: <InstructorSettings /> }],
+      },
       {
         element: <RequireRole allowedRoles={["admin"]} />,
         children: [
@@ -35,6 +38,5 @@ export const router = createBrowserRouter([
       },
     ],
   },
-
   { path: "*", element: <Navigate to="/" replace /> },
 ]);

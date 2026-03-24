@@ -1,71 +1,57 @@
+import {
+  createConversation,
+  getConversationMessages,
+  listConversations,
+  type ConversationSummary,
+} from "./api";
+
 export type ChatMsg = { role: "user" | "assistant"; content: string; ts: number };
 export type ChatSessionMeta = { id: string; title: string; updatedAt: number };
 
-const META_KEY = "mazer.chat.sessions.meta";
-const MSG_KEY_PREFIX = "mazer.chat.sessions.msg:";
-
-function uid() {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+function toSessionMeta(session: ConversationSummary): ChatSessionMeta {
+  return {
+    id: session.id,
+    title: session.title,
+    updatedAt: Date.parse(session.last_message_at || session.created_at),
+  };
 }
 
-function readMeta(): ChatSessionMeta[] {
-  try {
-    return JSON.parse(localStorage.getItem(META_KEY) || "[]");
-  } catch {
-    return [];
-  }
+export async function listSessions(): Promise<ChatSessionMeta[]> {
+  const response = await listConversations(1, 20);
+  return response.conversations.map(toSessionMeta);
 }
 
-function writeMeta(meta: ChatSessionMeta[]) {
-  localStorage.setItem(META_KEY, JSON.stringify(meta));
-}
-
-export function listSessions(): ChatSessionMeta[] {
-  return readMeta().sort((a, b) => b.updatedAt - a.updatedAt);
-}
-
-export function getLatestSession(): ChatSessionMeta | null {
-  const sessions = listSessions();
+export async function getLatestSession(): Promise<ChatSessionMeta | null> {
+  const sessions = await listSessions();
   return sessions.length > 0 ? sessions[0] : null;
 }
 
-export function createSession(title = "New chat"): ChatSessionMeta {
-  const meta = readMeta();
-  const s: ChatSessionMeta = { id: uid(), title, updatedAt: Date.now() };
-  writeMeta([s, ...meta]);
-  localStorage.setItem(MSG_KEY_PREFIX + s.id, JSON.stringify([]));
-  return s;
+export async function createSession(title = "New chat"): Promise<ChatSessionMeta> {
+  const created = await createConversation(title);
+  return {
+    id: created.conversation_id,
+    title: created.title,
+    updatedAt: Date.parse(created.created_at),
+  };
 }
 
-export function getMessages(sessionId: string): ChatMsg[] {
-  try {
-    return JSON.parse(localStorage.getItem(MSG_KEY_PREFIX + sessionId) || "[]");
-  } catch {
-    return [];
-  }
+export async function getMessages(sessionId: string): Promise<ChatMsg[]> {
+  const response = await getConversationMessages(sessionId);
+  return response.messages.map((message) => ({
+    role: message.role,
+    content: message.content,
+    ts: Date.parse(message.timestamp),
+  }));
 }
 
-export function saveMessages(sessionId: string, messages: ChatMsg[]) {
-  localStorage.setItem(MSG_KEY_PREFIX + sessionId, JSON.stringify(messages));
-  const meta = readMeta();
-  const idx = meta.findIndex((m) => m.id === sessionId);
-  if (idx !== -1) {
-    meta[idx] = { ...meta[idx], updatedAt: Date.now() };
-    writeMeta(meta);
-  }
+export async function saveMessages(_sessionId: string, _messages: ChatMsg[]) {
+  return;
 }
 
-export function renameSession(sessionId: string, title: string) {
-  const meta = readMeta();
-  const idx = meta.findIndex((m) => m.id === sessionId);
-  if (idx !== -1) {
-    meta[idx] = { ...meta[idx], title, updatedAt: Date.now() };
-    writeMeta(meta);
-  }
+export async function renameSession(_sessionId: string, _title: string) {
+  return;
 }
 
-export function deleteSession(sessionId: string) {
-  const meta = readMeta().filter((m) => m.id !== sessionId);
-  writeMeta(meta);
-  localStorage.removeItem(MSG_KEY_PREFIX + sessionId);
+export async function deleteSession(_sessionId: string) {
+  return;
 }

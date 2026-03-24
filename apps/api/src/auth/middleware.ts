@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
-import { verifyToken, JwtUser } from "./jwt.js";
+import { JwtUser } from "./jwt.js";
+import { getUserFromSessionToken } from "../services/auth/authService.js";
 
 declare global {
   namespace Express {
@@ -9,12 +10,12 @@ declare global {
   }
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const token = req.cookies?.session;
   if (!token) return res.status(401).json({ error: "Not logged in" });
 
   try {
-    req.user = verifyToken(token);
+    req.user = await getUserFromSessionToken(token);
     return next();
   } catch {
     return res.status(401).json({ error: "Invalid session" });
@@ -23,5 +24,10 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   if (req.user?.role !== "admin") return res.status(403).json({ error: "Admin only" });
+  return next();
+}
+
+export function requireInstructor(req: Request, res: Response, next: NextFunction) {
+  if (req.user?.role !== "instructor") return res.status(403).json({ error: "Instructor only" });
   return next();
 }

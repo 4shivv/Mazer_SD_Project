@@ -8,7 +8,7 @@ import { useAuth } from "../app/AuthProvider";
 export default function LoginTrainee() {
   const nav = useNavigate();
   const { setUser } = useAuth();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -19,11 +19,15 @@ export default function LoginTrainee() {
     setError("");
     setLoading(true);
     try {
-      const res = await Auth.login(email, password);
+      const res = await Auth.login(identifier, password);
       setUser(res.user);
       nav("/chat");
     } catch (err: any) {
-      setError(err.message || "Login failed");
+      if (err?.message === "instructor_pending_approval") {
+        setError("Instructor account is pending admin approval.");
+      } else {
+        setError(err.message || "Login failed");
+      }
     } finally {
       setLoading(false);
     }
@@ -35,10 +39,10 @@ export default function LoginTrainee() {
       <form className={styles.form} onSubmit={handleSubmit}>
         <input
           className={styles.field}
-          placeholder="Email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Username or email"
+          type="text"
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
           required
         />
         <div className={styles.passwordWrap}>
