@@ -6,8 +6,28 @@ import {
   updateRetentionPolicy,
   wipeStoredData,
 } from "../services/admin/retentionAdminService.js";
+import { User } from "../models/User.js";
 
 export const adminRouter = Router();
+
+/**
+ * GET /api/admin/users — Admin user oversight listing (FR-037, NFR-S4).
+ * Returns all users with safe field projection (excludes passwordHash).
+ */
+adminRouter.get("/users", requireAuth, requireAdmin, async (_req, res) => {
+  try {
+    const users = await User.find(
+      {},
+      { passwordHash: 0 } // Exclude sensitive field
+    )
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.json({ users });
+  } catch {
+    return res.status(500).json({ error: "user_list_failed" });
+  }
+});
 
 const UpdateRetentionPolicySchema = z.object({
   default_retention_days: z.coerce.number().int().min(1).max(3650),

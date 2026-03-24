@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../auth/middleware.js";
+import { capacityGate } from "../middleware/capacityGate.js";
+import { thermalGate } from "../middleware/thermalGate.js";
 import {
   ChatHistoryServiceError,
   createConversationForUser,
@@ -108,7 +110,7 @@ router.get("/conversations/:id/messages", requireAuth, async (req, res) => {
  * body: { conversation_id?: string, prompt: string, system?: string, model?: string, temperature?: number }
  * returns: { reply: string, conversation_id: string }
  */
-router.post("/chat", requireAuth, async (req, res) => {
+router.post("/chat", requireAuth, capacityGate, thermalGate, async (req, res) => {
   const parsed = ChatSchema.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
