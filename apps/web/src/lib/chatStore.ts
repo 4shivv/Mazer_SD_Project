@@ -5,7 +5,7 @@ import {
   type ConversationSummary,
 } from "./api";
 
-export type ChatMsg = { role: "user" | "assistant"; content: string; ts: number };
+export type ChatMsg = { role: "user" | "assistant"; content: string; ts: number; metadata?: unknown };
 export type ChatSessionMeta = { id: string; title: string; updatedAt: number };
 
 function toSessionMeta(session: ConversationSummary): ChatSessionMeta {
@@ -41,6 +41,7 @@ export async function getMessages(sessionId: string): Promise<ChatMsg[]> {
     role: message.role,
     content: message.content,
     ts: Date.parse(message.timestamp),
+    metadata: message.metadata ?? undefined,
   }));
 }
 

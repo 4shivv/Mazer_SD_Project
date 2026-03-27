@@ -9,6 +9,7 @@ import { router as chatRouter } from "./routes/chat.js";
 import { adminRouter } from "./routes/admin.js";
 import { instructorRouter } from "./routes/instructor.js";
 import { healthRouter } from "./routes/health.js";
+import { documentsRouter } from "./routes/documents.js";
 import { runExpiredConversationSweep } from "./services/admin/retentionAdminService.js";
 import { requestLogger } from "./middleware/requestLogger.js";
 import { initCapacityTracking } from "./middleware/capacityGate.js";
@@ -40,6 +41,7 @@ app.use("/api", chatRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/instructor", instructorRouter);
+app.use("/api/documents", documentsRouter);
 
 // Connect to Mongo then start server (single listen)
 const PORT = process.env.PORT || 4000;

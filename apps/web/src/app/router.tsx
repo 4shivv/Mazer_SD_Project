@@ -27,7 +27,10 @@ export const router = createBrowserRouter([
       { path: "/library", element: <Library /> },
       {
         element: <RequireRole allowedRoles={["instructor"]} />,
-        children: [{ path: "/instructor/settings", element: <InstructorSettings /> }],
+        children: [
+          { path: "/instructor/settings", element: <InstructorSettings /> },
+          { path: "/instructor/upload", element: <AdminUpload /> },
+        ],
       },
       {
         element: <RequireRole allowedRoles={["admin"]} />,

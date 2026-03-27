@@ -18,7 +18,6 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
   const role = user?.role;
   const isAdmin = role === "admin";
   const isInstructor = role === "instructor";
-  const isTrainee = role === "trainee";
 
   const [sessions, setSessions] = useState<ChatSessionMeta[]>([]);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -101,10 +100,10 @@ export default function Sidebar({ open, onClose, onNewChat }: Props) {
             Library
           </button>
 
-          {(isTrainee || isInstructor) && (
+          {isInstructor && (
             <button
               className={styles.item}
-              onClick={() => alert("Document upload flow coming soon")}
+              onClick={() => goTo("/instructor/upload")}
             >
               Upload Documents
             </button>
