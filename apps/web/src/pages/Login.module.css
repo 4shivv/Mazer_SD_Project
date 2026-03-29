@@ -13,25 +13,30 @@
   color: var(--muted);
 }
 
-.passwordWrap{
-  position: relative;
+.passwordRow{
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
 }
 
+.passwordWrap{
+  position: relative;
+  width: 100%;
+  flex: 1 1 auto;
+}
+
 .passwordWrap .field{
-  padding-right: 44px;
+  padding-right: 14px;
 }
 
 .passwordToggle{
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
+  position: static;
   min-width: var(--touch-min, 44px);
   min-height: var(--touch-min, 44px);
   padding: 0;
-  border: none;
-  background: none;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(10,11,16,0.45);
   color: var(--muted);
   cursor: pointer;
   border-radius: 8px;

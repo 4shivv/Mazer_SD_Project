@@ -37,9 +37,10 @@ const UpdateRetentionPolicySchema = z.object({
 const WipeRequestSchema = z.object({
   wipe_conversations: z.coerce.boolean().optional().default(false),
   wipe_embeddings: z.coerce.boolean().optional().default(false),
+  wipe_model_weights: z.coerce.boolean().optional().default(false),
   confirmation_code: z.string().min(1),
 }).refine(
-  (payload) => payload.wipe_conversations || payload.wipe_embeddings,
+  (payload) => payload.wipe_conversations || payload.wipe_embeddings || payload.wipe_model_weights,
   {
     message: "At least one wipe target is required",
     path: ["wipe_conversations"],
@@ -74,6 +75,7 @@ adminRouter.post("/wipe", requireAuth, requireAdmin, async (req, res) => {
       confirmationCode: parsed.data.confirmation_code,
       wipeConversations: parsed.data.wipe_conversations,
       wipeEmbeddings: parsed.data.wipe_embeddings,
+      wipeModelWeights: parsed.data.wipe_model_weights,
     });
     return res.json(result);
   } catch (error) {

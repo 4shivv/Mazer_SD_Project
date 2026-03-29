@@ -5,7 +5,7 @@ import {
   type ConversationSummary,
 } from "./api";
 
-export type ChatMsg = { role: "user" | "assistant"; content: string; ts: number };
+export type ChatMsg = { role: "user" | "assistant"; content: string; ts: number; metadata?: unknown };
 export type ChatSessionMeta = { id: string; title: string; updatedAt: number };
 
 function toSessionMeta(session: ConversationSummary): ChatSessionMeta {
@@ -16,13 +16,13 @@ function toSessionMeta(session: ConversationSummary): ChatSessionMeta {
   };
 }
 
-export async function listSessions(): Promise<ChatSessionMeta[]> {
-  const response = await listConversations(1, 20);
+export async function listSessions(limit = 100): Promise<ChatSessionMeta[]> {
+  const response = await listConversations(1, limit);
   return response.conversations.map(toSessionMeta);
 }
 
 export async function getLatestSession(): Promise<ChatSessionMeta | null> {
-  const sessions = await listSessions();
+  const sessions = await listSessions(1);
   return sessions.length > 0 ? sessions[0] : null;
 }
 
@@ -41,6 +41,7 @@ export async function getMessages(sessionId: string): Promise<ChatMsg[]> {
     role: message.role,
     content: message.content,
     ts: Date.parse(message.timestamp),
+    metadata: message.metadata ?? undefined,
   }));
 }
 

@@ -47,12 +47,28 @@ type MessageResult = {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  metadata?: unknown;
 };
 
 type ConversationMessagesResult = {
   conversation_id: string;
   messages: MessageResult[];
 };
+
+export type PromptContextMessage = {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
+};
+
+type ConversationPromptContextResult = {
+  conversation_id: string;
+  messages: PromptContextMessage[];
+  approx_token_count: number;
+  dropped_message_count: number;
+};
+
+export const MAX_CONVERSATION_CONTEXT_TOKENS = 2048;
 
 function normalizeTitle(title?: string) {
   const normalized = title?.trim();
@@ -83,6 +99,12 @@ function assertConversationNotExpired(conversation: unknown) {
       "conversation_expired"
     );
   }
+}
+
+function estimateTokenCount(text: string) {
+  const normalized = text.trim();
+  if (!normalized) return 0;
+  return normalized.split(/\s+/).length;
 }
 
 export async function createConversationForUser(args: {
@@ -164,8 +186,72 @@ export async function getConversationMessagesForUser(args: {
         role: messageDoc.role as "user" | "assistant",
         content: String(messageDoc.content),
         timestamp: messageDoc.timestamp as Date,
+        metadata: messageDoc.metadata ?? null,
       };
     }),
+  };
+}
+
+export async function getConversationPromptContextForUser(args: {
+  userId: string;
+  conversationId: string;
+  currentPrompt: string;
+  maxTokens?: number;
+}): Promise<ConversationPromptContextResult> {
+  assertValidConversationId(args.conversationId);
+
+  const conversation = await findConversationByIdForUser({
+    conversationId: args.conversationId,
+    userId: args.userId,
+  });
+  if (!conversation) {
+    throw new ChatHistoryServiceError(404, "Conversation not found", "conversation_not_found");
+  }
+  assertConversationNotExpired(conversation);
+
+  const maxTokens = Math.max(256, args.maxTokens ?? MAX_CONVERSATION_CONTEXT_TOKENS);
+  const reservedForCurrentPrompt = estimateTokenCount(args.currentPrompt) + 16;
+  const availableForHistory = Math.max(0, maxTokens - reservedForCurrentPrompt);
+  const messages = await listMessagesByConversationId(args.conversationId);
+
+  const selected: PromptContextMessage[] = [];
+  let usedTokens = 0;
+  let droppedMessageCount = 0;
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const rawMessage = messages[index] as any;
+    const content = String(rawMessage.content ?? "");
+    const estimatedCost = estimateTokenCount(content) + 8;
+
+    if (selected.length > 0 && usedTokens + estimatedCost > availableForHistory) {
+      droppedMessageCount = index + 1;
+      break;
+    }
+
+    if (selected.length === 0 && estimatedCost > availableForHistory) {
+      selected.unshift({
+        role: rawMessage.role as "user" | "assistant",
+        content,
+        timestamp: rawMessage.timestamp as Date,
+      });
+      usedTokens = Math.min(estimatedCost, availableForHistory);
+      droppedMessageCount = index;
+      break;
+    }
+
+    selected.unshift({
+      role: rawMessage.role as "user" | "assistant",
+      content,
+      timestamp: rawMessage.timestamp as Date,
+    });
+    usedTokens += estimatedCost;
+  }
+
+  return {
+    conversation_id: args.conversationId,
+    messages: selected,
+    approx_token_count: usedTokens + reservedForCurrentPrompt,
+    dropped_message_count: droppedMessageCount,
   };
 }
 
@@ -201,6 +287,8 @@ export async function persistChatExchange(args: {
   conversationId: string;
   userPrompt: string;
   assistantReply: string;
+  userMetadata?: unknown;
+  assistantMetadata?: unknown;
 }) {
   assertValidConversationId(args.conversationId);
 
@@ -220,14 +308,23 @@ export async function persistChatExchange(args: {
       role: "user",
       content: args.userPrompt,
       timestamp: now,
+      metadata: args.userMetadata ?? null,
     },
     {
       conversationId: args.conversationId,
       role: "assistant",
       content: args.assistantReply,
       timestamp: now,
+      metadata: args.assistantMetadata ?? null,
     },
   ]);
+
+  const suggestedTitle = generateConversationTitleFromPrompt(args.userPrompt);
+  await updateConversationTitleOnFirstMessage({
+    conversationId: args.conversationId,
+    userId: args.userId,
+    title: suggestedTitle,
+  });
 
   const selfDestructDate = await resolveSelfDestructDateForAnchor(now);
   await touchConversationActivity({
@@ -236,12 +333,5 @@ export async function persistChatExchange(args: {
     lastMessageAt: now,
     incrementBy: 2,
     selfDestructDate,
-  });
-
-  const suggestedTitle = generateConversationTitleFromPrompt(args.userPrompt);
-  await updateConversationTitleOnFirstMessage({
-    conversationId: args.conversationId,
-    userId: args.userId,
-    title: suggestedTitle,
   });
 }

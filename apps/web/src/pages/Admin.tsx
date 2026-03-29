@@ -25,6 +25,7 @@ export default function Admin() {
 
   const [wipeConversations, setWipeConversations] = useState(false);
   const [wipeEmbeddings, setWipeEmbeddings] = useState(false);
+  const [wipeModelWeights, setWipeModelWeights] = useState(false);
   const [confirmationCode, setConfirmationCode] = useState("");
   const [wipeLoading, setWipeLoading] = useState(false);
   const [wipeResult, setWipeResult] = useState<AdminWipeResponse | null>(null);
@@ -131,7 +132,7 @@ export default function Admin() {
     resetMessages();
     setWipeResult(null);
 
-    if (!wipeConversations && !wipeEmbeddings) {
+    if (!wipeConversations && !wipeEmbeddings && !wipeModelWeights) {
       setError("Select at least one wipe target.");
       return;
     }
@@ -145,6 +146,7 @@ export default function Admin() {
       const result = await runAdminWipe({
         wipe_conversations: wipeConversations,
         wipe_embeddings: wipeEmbeddings,
+        wipe_model_weights: wipeModelWeights,
         confirmation_code: confirmationCode.trim(),
       });
       setWipeResult(result);
@@ -320,6 +322,14 @@ export default function Admin() {
               onChange={(e) => setWipeEmbeddings(e.target.checked)}
             />
             Wipe embeddings
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--muted)" }}>
+            <input
+              type="checkbox"
+              checked={wipeModelWeights}
+              onChange={(e) => setWipeModelWeights(e.target.checked)}
+            />
+            Reset model weights and cache
           </label>
           <input
             className={styles.field}

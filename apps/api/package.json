@@ -8,6 +8,7 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:unit": "vitest run",
+    "test:integration": "vitest run src/routes src/services",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },

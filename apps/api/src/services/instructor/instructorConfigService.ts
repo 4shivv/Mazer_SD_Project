@@ -1,6 +1,7 @@
 import { findUserById } from "../../repositories/userRepository.js";
 import {
   getEffectiveInstructorConfigByUserId,
+  getLatestInstructorConfig,
   upsertInstructorConfigByUserId,
 } from "../../repositories/instructorConfigRepository.js";
 
@@ -80,6 +81,29 @@ export async function getInstructorConfigForActor(args: { actorUserId: string })
   const config = await getEffectiveInstructorConfigByUserId(args.actorUserId);
 
   return {
+    config: toInstructorConfigResult(config),
+  };
+}
+
+export async function resolveInstructorConfigForChatActor(args: { actorUserId?: string }) {
+  const actorUserId = args.actorUserId;
+  if (actorUserId) {
+    const user = await findUserById(actorUserId);
+    if (
+      user
+      && (user as any).role === "instructor"
+      && (user as any).instructorApprovalStatus === "approved"
+    ) {
+      return {
+        source: "actor" as const,
+        config: toInstructorConfigResult(await getEffectiveInstructorConfigByUserId(actorUserId)),
+      };
+    }
+  }
+
+  const config = await getLatestInstructorConfig();
+  return {
+    source: config.updated_at ? ("latest_approved_instructor" as const) : ("defaults" as const),
     config: toInstructorConfigResult(config),
   };
 }

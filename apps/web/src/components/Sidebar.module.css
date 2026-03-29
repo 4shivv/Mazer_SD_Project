@@ -73,6 +73,34 @@
 
 .section{ display:flex; flex-direction:column; gap: 8px; }
 
+.searchBox{
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0 2px;
+}
+
+.searchInput{
+  width: 100%;
+  min-height: var(--touch-min, 44px);
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(10,11,16,0.32);
+  color: var(--text);
+  font-size: 0.96rem;
+}
+
+.searchInput::placeholder{
+  color: var(--muted);
+}
+
+.searchMeta{
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 .item{
   width: 100%;
   min-height: var(--touch-min, 44px);
@@ -136,6 +164,12 @@
 .historyRow{
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+
+.searchResultSection{
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 

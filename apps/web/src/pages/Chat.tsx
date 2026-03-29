@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
-import { sendChat } from "../lib/api";
+import { sendChatStream } from "../lib/api";
 import { useAuth } from "../app/AuthProvider";
 import * as Auth from "../lib/auth";
 import type { ChatMsg } from "../lib/chatStore";
@@ -39,6 +39,7 @@ export default function Chat() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -134,6 +135,7 @@ export default function Chat() {
     try {
       const session = await createSession("New chat");
       setSidebarOpen(false);
+      setHistoryRefreshKey((current) => current + 1);
       navigate(`/chat?sid=${encodeURIComponent(session.id)}`);
     } catch (error: any) {
       setErrorBanner(error?.message || "Failed to create conversation");
@@ -160,22 +162,41 @@ export default function Chat() {
     if (!activeConversationId) return;
 
     const userMsg: Msg = { role: "user", text: prompt, ts: Date.now() };
-    setMessages((m) => [...m, userMsg]);
+    const assistantTs = Date.now() + 1;
+    setMessages((m) => [...m, userMsg, { role: "assistant", text: "", ts: assistantTs }]);
     setInput("");
     setLoading(true);
 
     try {
-      const res = await sendChat(prompt, activeConversationId);
-      const assistantMsg: Msg = {
-        role: "assistant",
-        text: res.reply || "",
-        ts: Date.now(),
-      };
-      setMessages((m) => [...m, assistantMsg]);
+      const res = await sendChatStream(prompt, activeConversationId, {
+        onToken(token) {
+          setMessages((current) =>
+            current.map((message) =>
+              message.ts === assistantTs
+                ? { ...message, text: `${message.text}${token}` }
+                : message
+            )
+          );
+        },
+        onComplete(payload) {
+          setMessages((current) =>
+            current.map((message) =>
+              message.ts === assistantTs
+                ? { ...message, text: payload.reply || message.text }
+                : message
+            )
+          );
+        },
+      });
+
       if (res.conversation_id && res.conversation_id !== activeConversationId) {
         navigate(`/chat?sid=${encodeURIComponent(res.conversation_id)}`, { replace: true });
       }
+      setHistoryRefreshKey((current) => current + 1);
     } catch (e: any) {
+      setMessages((current) =>
+        current.filter((message) => !(message.ts === assistantTs && !message.text.trim()))
+      );
       setErrorBanner(e?.message || "Request failed");
     } finally {
       setLoading(false);
@@ -203,6 +224,7 @@ export default function Chat() {
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onNewChat={newChat}
+        historyRefreshKey={historyRefreshKey}
       />
 
       <div className={styles.main}>
@@ -286,13 +308,16 @@ export default function Chat() {
               <div className={styles.bubbleText}>{m.text}</div>
 
               {m.role === "assistant" && m.text?.trim() && (
-                <button
-                  className={styles.copyBtn}
-                  onClick={() => void copy(m.text)}
-                  title="Copy"
-                >
-                  Copy
-                </button>
+                <div className={styles.bubbleFooter}>
+                  <button
+                    className={styles.copyBtn}
+                    onClick={() => void copy(m.text)}
+                    title="Copy response"
+                    aria-label="Copy response"
+                  >
+                    Copy
+                  </button>
+                </div>
               )}
             </div>
           ))}

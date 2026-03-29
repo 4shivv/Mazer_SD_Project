@@ -50,7 +50,7 @@ export default function Register() {
       {error && <div style={{ color: "#ff6b6b", marginBottom: "1rem" }}>{error}</div>}
       {notice && <div style={{ color: "#3ddc97", marginBottom: "1rem" }}>{notice}</div>}
 
-      <form className={styles.form} onSubmit={handleRegister}>
+      <form className={styles.form} onSubmit={handleRegister} autoComplete="on">
         <label className={styles.roleLabel}>Account type</label>
 
         <div className={styles.roleGroup}>
@@ -77,20 +77,25 @@ export default function Register() {
           className={styles.field}
           placeholder="Email or username"
           type="text"
+          name="username"
           value={identifier}
           onChange={(e) => setIdentifier(e.target.value)}
           autoComplete="username"
           required
         />
 
-        <input
-          className={styles.field}
-          placeholder="Password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
+        <div className={styles.passwordWrap}>
+          <input
+            className={styles.field}
+            placeholder="Password"
+            type="password"
+            name="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
+            required
+          />
+        </div>
 
         <button className={styles.submit} type="submit" disabled={loading}>
           {loading ? "Creating..." : "Create Account"}

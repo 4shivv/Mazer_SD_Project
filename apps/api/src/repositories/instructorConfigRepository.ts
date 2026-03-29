@@ -40,11 +40,10 @@ export async function getInstructorConfigByUserId(userId: string) {
   return InstructorConfig.findOne({ user_id: userId });
 }
 
-export async function getEffectiveInstructorConfigByUserId(userId: string) {
-  const doc = await getInstructorConfigByUserId(userId);
+function toConfigRecord(doc: any, fallbackUserId = "") {
   if (!doc) {
     return {
-      user_id: userId,
+      user_id: fallbackUserId,
       personality_prompt: INSTRUCTOR_CONFIG_DEFAULTS.personalityPrompt,
       temperature: INSTRUCTOR_CONFIG_DEFAULTS.temperature,
       max_tokens: INSTRUCTOR_CONFIG_DEFAULTS.maxTokens,
@@ -53,15 +52,24 @@ export async function getEffectiveInstructorConfigByUserId(userId: string) {
     };
   }
 
-  const data = doc as any;
   return {
-    user_id: String(data.user_id),
-    personality_prompt: String(data.personality_prompt),
-    temperature: Number(data.temperature),
-    max_tokens: Number(data.max_tokens),
-    retrieval_threshold: Number(data.retrieval_threshold),
-    updated_at: (data.updated_at as Date | null | undefined) ?? null,
+    user_id: String(doc.user_id ?? fallbackUserId),
+    personality_prompt: String(doc.personality_prompt),
+    temperature: Number(doc.temperature),
+    max_tokens: Number(doc.max_tokens),
+    retrieval_threshold: Number(doc.retrieval_threshold),
+    updated_at: (doc.updated_at as Date | null | undefined) ?? null,
   };
+}
+
+export async function getEffectiveInstructorConfigByUserId(userId: string) {
+  const doc = await getInstructorConfigByUserId(userId);
+  return toConfigRecord(doc as any, userId);
+}
+
+export async function getLatestInstructorConfig() {
+  const doc = await InstructorConfig.findOne({}).sort({ updated_at: -1, created_at: -1 });
+  return toConfigRecord(doc as any);
 }
 
 export async function upsertInstructorConfigByUserId(args: {

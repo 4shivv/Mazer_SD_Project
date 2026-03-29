@@ -11,6 +11,7 @@ import {
   normalizeRetentionDays,
   upsertGlobalRetentionPolicy,
 } from "../../repositories/retentionPolicyRepository.js";
+import { rm } from "node:fs/promises";
 import {
   LocalMongoSecureWipeAdapter,
   type SecureWipeAdapter,
@@ -35,6 +36,14 @@ type EmbeddingWipeResult = {
   status: "completed" | "skipped" | "failed";
   embeddingsDeleted: number;
   error?: string;
+};
+
+type ModelResetResult = {
+  status: "completed" | "skipped" | "failed";
+  modelsDeleted: number;
+  cachePathsCleared: number;
+  deletedModelNames: string[];
+  errors: string[];
 };
 
 let secureWipeAdapter: SecureWipeAdapter = new LocalMongoSecureWipeAdapter();
@@ -95,6 +104,86 @@ async function wipeEmbeddingsIfRequested(shouldWipe: boolean): Promise<Embedding
       error: error instanceof Error ? error.message : "chroma_wipe_request_failed",
     };
   }
+}
+
+function parseConfiguredPaths(value?: string) {
+  return (value ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+async function removeConfiguredPath(targetPath: string) {
+  await rm(targetPath, { recursive: true, force: true });
+}
+
+async function wipeModelWeightsIfRequested(shouldWipe: boolean): Promise<ModelResetResult> {
+  if (!shouldWipe) {
+    return {
+      status: "skipped",
+      modelsDeleted: 0,
+      cachePathsCleared: 0,
+      deletedModelNames: [],
+      errors: [],
+    };
+  }
+
+  const ollamaHost = process.env.OLLAMA_HOST || "http://localhost:11434";
+  const modelPaths = parseConfiguredPaths(process.env.OLLAMA_MODEL_STORAGE_PATHS);
+  const cachePaths = parseConfiguredPaths(process.env.OLLAMA_CACHE_PATHS);
+  const errors: string[] = [];
+  const deletedModelNames: string[] = [];
+
+  try {
+    const tagsResponse = await fetch(`${ollamaHost}/api/tags`);
+    if (!tagsResponse.ok) {
+      errors.push(`ollama_tags_failed_${tagsResponse.status}`);
+    } else {
+      const payload = await tagsResponse.json() as {
+        models?: Array<{ name?: string }>;
+      };
+      const names = (payload.models ?? [])
+        .map((model) => model.name?.trim())
+        .filter((name): name is string => Boolean(name));
+
+      for (const name of names) {
+        try {
+          const deleteResponse = await fetch(`${ollamaHost}/api/delete`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name }),
+          });
+          if (!deleteResponse.ok) {
+            errors.push(`ollama_delete_failed_${name}_${deleteResponse.status}`);
+            continue;
+          }
+          deletedModelNames.push(name);
+        } catch (error) {
+          errors.push(error instanceof Error ? `ollama_delete_failed_${name}_${error.message}` : `ollama_delete_failed_${name}`);
+        }
+      }
+    }
+  } catch (error) {
+    errors.push(error instanceof Error ? `ollama_tags_failed_${error.message}` : "ollama_tags_failed");
+  }
+
+  let cachePathsCleared = 0;
+  for (const targetPath of [...modelPaths, ...cachePaths]) {
+    try {
+      await removeConfiguredPath(targetPath);
+      cachePathsCleared += 1;
+    } catch (error) {
+      errors.push(error instanceof Error ? `model_path_reset_failed_${targetPath}_${error.message}` : `model_path_reset_failed_${targetPath}`);
+    }
+  }
+
+  return {
+    status: errors.length > 0 ? "failed" : "completed",
+    modelsDeleted: deletedModelNames.length,
+    cachePathsCleared,
+    deletedModelNames,
+    errors,
+  };
 }
 
 function assertConfirmationCode(confirmationCode: string) {
@@ -160,8 +249,9 @@ export async function wipeStoredData(args: {
   confirmationCode: string;
   wipeConversations: boolean;
   wipeEmbeddings: boolean;
+  wipeModelWeights?: boolean;
 }) {
-  if (!args.wipeConversations && !args.wipeEmbeddings) {
+  if (!args.wipeConversations && !args.wipeEmbeddings && !args.wipeModelWeights) {
     throw new AdminRetentionServiceError(400, "No wipe target selected", "wipe_target_required");
   }
 
@@ -190,11 +280,18 @@ export async function wipeStoredData(args: {
   if (embeddingWipe.status === "failed" && embeddingWipe.error) {
     partialErrors = [embeddingWipe.error];
   }
+  const modelReset = await wipeModelWeightsIfRequested(Boolean(args.wipeModelWeights));
+  if (modelReset.errors.length > 0) {
+    partialErrors = [...partialErrors, ...modelReset.errors];
+  }
 
   return {
     status: partialErrors.length > 0 ? "partial" : "completed",
     conversations_deleted: conversationsDeleted,
     embeddings_deleted: embeddingWipe.embeddingsDeleted,
+    models_deleted: modelReset.modelsDeleted,
+    model_cache_paths_cleared: modelReset.cachePathsCleared,
+    deleted_model_names: modelReset.deletedModelNames,
     storage_freed_gb: 0,
     wipe_audit: conversationWipeAudit,
     errors: partialErrors,
