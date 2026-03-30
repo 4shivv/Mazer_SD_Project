@@ -9,8 +9,6 @@ This README is intentionally short:
 - Validation
 - Teardown
 
-For end-to-end user-flow testing, use [HANDOFF_GUIDE.md](/Users/shivaganeshnagamandla/GitHub_Projects/Mazer_SD_Project/HANDOFF_GUIDE.md).
-
 ## Prerequisites
 
 - Node.js `20+`
@@ -253,7 +251,12 @@ npm run build
 
 ### User-flow validation
 
-Run the full checklist in [HANDOFF_GUIDE.md](/Users/shivaganeshnagamandla/GitHub_Projects/Mazer_SD_Project/HANDOFF_GUIDE.md).
+Recommended smoke-test flows:
+
+- admin bootstrap and admin login
+- trainee registration and chat
+- instructor registration, approval, and login
+- document upload, library visibility, and grounded chat
 
 ## Notes
 
