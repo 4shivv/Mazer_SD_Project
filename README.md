@@ -38,7 +38,7 @@ From the repo root:
 
 ```bash
 docker compose up --build -d
-docker compose exec ollama ollama pull llama3:8b-q4_K_M
+docker compose exec ollama ollama pull llama3:8b-instruct-q4_K_M
 docker compose exec ollama ollama pull nomic-embed-text
 cd apps/web
 npm install
@@ -82,7 +82,7 @@ npm run dev
 Notes:
 
 - Option B is also a normal local-computer workflow.
-- If your machine is weak for `llama3:8b-q4_K_M`, you can temporarily choose a smaller local model in `apps/api/.env` and pull that model in Ollama for development only.
+- If your machine is weak for `llama3:8b-instruct-q4_K_M`, you can temporarily choose a smaller local model in `apps/api/.env` and pull that model in Ollama for development only.
 
 ## Production-Style Setup
 
@@ -128,19 +128,19 @@ OLLAMA_GPU_DEVICE=0 docker compose -f docker-compose.prod.yml -f docker-compose.
 Pull the required models:
 
 ```bash
-docker compose -f docker-compose.prod.yml exec ollama ollama pull llama3:8b-q4_K_M
-docker compose -f docker-compose.prod.yml exec ollama ollama pull mistral:7b-q4_0
-docker compose -f docker-compose.prod.yml exec ollama ollama pull llama3:13b-q4_0
+docker compose -f docker-compose.prod.yml exec ollama ollama pull llama3:8b-instruct-q4_K_M
+docker compose -f docker-compose.prod.yml exec ollama ollama pull mistral:7b-instruct-q4_0
+docker compose -f docker-compose.prod.yml exec ollama ollama pull llama3.1:8b-instruct-q4_K_M
 docker compose -f docker-compose.prod.yml exec ollama ollama pull nomic-embed-text
 ```
 
 Important production notes:
 
 - The repo now enforces the approved q4 chat-model lineup:
-  - `llama3:8b-q4_K_M`
-  - `mistral:7b-q4_0`
-  - `llama3:13b-q4_0`
-- The default production chat model is `llama3:8b-q4_K_M`.
+  - `llama3:8b-instruct-q4_K_M`
+  - `mistral:7b-instruct-q4_0`
+  - `llama3.1:8b-instruct-q4_K_M`
+- The default production chat model is `llama3:8b-instruct-q4_K_M`.
 - Internal TLS is required in the production-style stack.
 - Host data/log defaults are:
   - MongoDB: `/mnt/nvme/mongodb`

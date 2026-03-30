@@ -1,14 +1,14 @@
 const DESIGN_ALLOWED_CHAT_MODELS = [
-  "llama3:8b-q4_K_M",
-  "mistral:7b-q4_0",
-  "llama3:13b-q4_0",
+  "llama3:8b-instruct-q4_K_M",
+  "mistral:7b-instruct-q4_0",
+  "llama3.1:8b-instruct-q4_K_M",
 ] as const;
 
 const DESIGN_ALLOWED_CHAT_MODEL_SET = new Set<string>(DESIGN_ALLOWED_CHAT_MODELS);
 const MODEL_SESSION_CAPACITY: Record<string, number> = {
-  "llama3:8b-q4_K_M": 12,
-  "mistral:7b-q4_0": 12,
-  "llama3:13b-q4_0": 8,
+  "llama3:8b-instruct-q4_K_M": 12,
+  "mistral:7b-instruct-q4_0": 12,
+  "llama3.1:8b-instruct-q4_K_M": 12,
 };
 
 export class ModelPolicyError extends Error {

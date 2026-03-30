@@ -19,15 +19,15 @@ describe("modelPolicy", () => {
     delete process.env.OLLAMA_MODEL;
 
     expect(getAllowedChatModels()).toEqual([
-      "llama3:8b-q4_K_M",
-      "mistral:7b-q4_0",
-      "llama3:13b-q4_0",
+      "llama3:8b-instruct-q4_K_M",
+      "mistral:7b-instruct-q4_0",
+      "llama3.1:8b-instruct-q4_K_M",
     ]);
-    expect(assertChatModelPolicyContract().defaultModel).toBe("llama3:8b-q4_K_M");
+    expect(assertChatModelPolicyContract().defaultModel).toBe("llama3:8b-instruct-q4_K_M");
   });
 
   it("rejects defaults outside the approved model lineup", () => {
-    process.env.OLLAMA_ALLOWED_CHAT_MODELS = "llama3:8b-q4_K_M,mistral:7b-q4_0";
+    process.env.OLLAMA_ALLOWED_CHAT_MODELS = "llama3:8b-instruct-q4_K_M,mistral:7b-instruct-q4_0";
     process.env.OLLAMA_MODEL = "llama3.2:3b";
 
     expect(() => assertChatModelPolicyContract()).toThrow(
@@ -39,9 +39,9 @@ describe("modelPolicy", () => {
     expect(() => resolveChatModel("llama3.2:3b")).toThrow(ModelPolicyError);
   });
 
-  it("derives lower session capacity for the approved 13b model", () => {
-    process.env.OLLAMA_MODEL = "llama3:13b-q4_0";
+  it("keeps the approved 8b lineup at the standard session capacity", () => {
+    process.env.OLLAMA_MODEL = "llama3.1:8b-instruct-q4_K_M";
 
-    expect(getMaxConcurrentSessions()).toBe(8);
+    expect(getMaxConcurrentSessions()).toBe(12);
   });
 });
