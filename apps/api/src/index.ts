@@ -13,13 +13,17 @@ import { documentsRouter } from "./routes/documents.js";
 import { runExpiredConversationSweep } from "./services/admin/retentionAdminService.js";
 import { recoverInterruptedDocumentProcessing } from "./services/documents/documentService.js";
 import { requestLogger } from "./middleware/requestLogger.js";
-import { initCapacityTracking } from "./middleware/capacityGate.js";
+import { getConfiguredMaxConcurrentSessions, initCapacityTracking } from "./middleware/capacityGate.js";
 import { initThermalMonitor } from "./middleware/thermalGate.js";
+import { assertInternalTransportSecurityContract } from "./runtime/internalTransportSecurity.js";
+import { assertChatModelPolicyContract } from "./runtime/modelPolicy.js";
 
 dotenv.config();
 
 const app = express();
 const log = pino({ transport: { target: "pino-pretty" } });
+const transportSecurity = assertInternalTransportSecurityContract();
+const chatModelPolicy = assertChatModelPolicyContract();
 
 // Core middleware
 app.use(
@@ -49,6 +53,15 @@ const PORT = process.env.PORT || 4000;
 const RETENTION_SWEEP_INTERVAL_MS = Number(process.env.RETENTION_SWEEP_INTERVAL_MS ?? "60000");
 connectMongo()
   .then(() => {
+    if (transportSecurity.enforcement === "variance") {
+      log.warn(
+        { transportSecurity },
+        "Internal transport security is running in explicit variance mode"
+      );
+    } else {
+      log.info({ transportSecurity }, "Internal transport security contract verified");
+    }
+
     recoverInterruptedDocumentProcessing()
       .then((recovered) => {
         if (recovered > 0) {
@@ -61,7 +74,14 @@ connectMongo()
 
     // Initialize runtime governance modules
     initCapacityTracking();
-    log.info("Capacity tracking initialized (max sessions: 12)");
+    log.info(
+      {
+        defaultModel: chatModelPolicy.defaultModel,
+        allowedModels: chatModelPolicy.allowedModels,
+        maxConcurrentSessions: getConfiguredMaxConcurrentSessions(),
+      },
+      "Capacity tracking initialized"
+    );
 
     initThermalMonitor();
     log.info("Thermal monitor initialized (poll interval: 30s, threshold: 83°C)");

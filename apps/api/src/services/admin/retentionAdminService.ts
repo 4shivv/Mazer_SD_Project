@@ -12,6 +12,7 @@ import {
   upsertGlobalRetentionPolicy,
 } from "../../repositories/retentionPolicyRepository.js";
 import { rm } from "node:fs/promises";
+import { isAbsolute } from "node:path";
 import {
   LocalMongoSecureWipeAdapter,
   type SecureWipeAdapter,
@@ -107,10 +108,18 @@ async function wipeEmbeddingsIfRequested(shouldWipe: boolean): Promise<Embedding
 }
 
 function parseConfiguredPaths(value?: string) {
-  return (value ?? "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
+  const seen = new Set<string>();
+  const paths: string[] = [];
+
+  for (const rawItem of (value ?? "").split(",")) {
+    const item = rawItem.trim();
+    if (!item || !isAbsolute(item) || item === "/") continue;
+    if (seen.has(item)) continue;
+    seen.add(item);
+    paths.push(item);
+  }
+
+  return paths;
 }
 
 async function removeConfiguredPath(targetPath: string) {

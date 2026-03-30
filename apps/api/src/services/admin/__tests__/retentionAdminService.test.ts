@@ -101,4 +101,33 @@ describe("wipeStoredData", () => {
     expect(result.models_deleted).toBe(0);
     expect(result.errors.some((error) => error.includes("ollama_tags_failed"))).toBe(true);
   });
+
+  it("ignores duplicate, relative, and root cleanup paths", async () => {
+    process.env.OLLAMA_HOST = "http://ollama.local";
+    process.env.OLLAMA_MODEL_STORAGE_PATHS = "/models,/models,relative-path,/";
+    process.env.OLLAMA_CACHE_PATHS = "/cache,/cache";
+
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ models: [{ name: "llama3.2:3b" }] }),
+      })
+      .mockResolvedValue({
+        ok: true,
+        text: async () => "",
+      });
+
+    const result = await wipeStoredData({
+      confirmationCode: "CONFIRM",
+      wipeConversations: false,
+      wipeEmbeddings: false,
+      wipeModelWeights: true,
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.model_cache_paths_cleared).toBe(2);
+    expect(rm).toHaveBeenCalledTimes(2);
+    expect(rm).toHaveBeenNthCalledWith(1, "/models", { recursive: true, force: true });
+    expect(rm).toHaveBeenNthCalledWith(2, "/cache", { recursive: true, force: true });
+  });
 });

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -19,6 +19,32 @@ function getFileExtension(filename: string) {
   return path.extname(filename).toLowerCase();
 }
 
+function buildParsedDocument(
+  pages: Array<{ page_number: number; text: string }>,
+  pageCountOverride?: number | null
+): ParsedDocumentText {
+  return {
+    text: pages.map((page) => page.text).join("\n\n").trim(),
+    pageCount: pageCountOverride ?? (pages.length > 0 ? pages.length : null),
+    pages: pages.length > 0 ? pages : null,
+  };
+}
+
+function normalizeParsedPages(rawText: string) {
+  return rawText
+    .split("\f")
+    .map((pageText, index) => ({
+      page_number: index + 1,
+      text: pageText.trim(),
+    }))
+    .filter((page) => page.text.length > 0);
+}
+
+function hasUsableExtractedText(parsed: ParsedDocumentText) {
+  if (parsed.text.trim().length > 0) return true;
+  return parsed.pages?.some((page) => page.text.trim().length > 0) ?? false;
+}
+
 async function extractPdfTextWithCli(buffer: Buffer): Promise<ParsedDocumentText> {
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), "mazer-pdf-"));
   const inputPath = path.join(tmpDir, "input.pdf");
@@ -28,19 +54,42 @@ async function extractPdfTextWithCli(buffer: Buffer): Promise<ParsedDocumentText
     await writeFile(inputPath, buffer);
     await execFileAsync("pdftotext", ["-layout", inputPath, outputPath]);
     const rawText = await readFile(outputPath, "utf8");
-    const pages = rawText
-      .split("\f")
-      .map((pageText) => pageText.trim())
-      .filter(Boolean)
-      .map((pageText, index) => ({
+    return buildParsedDocument(normalizeParsedPages(rawText));
+  } catch {
+    throw new Error("pdf_text_extraction_unavailable");
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+}
+
+async function extractPdfTextWithOcr(buffer: Buffer): Promise<ParsedDocumentText> {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "mazer-pdf-ocr-"));
+  const inputPath = path.join(tmpDir, "input.pdf");
+  const imagePrefix = path.join(tmpDir, "page");
+
+  try {
+    await writeFile(inputPath, buffer);
+    await execFileAsync("pdftoppm", ["-png", inputPath, imagePrefix]);
+
+    const imagePaths = (await readdir(tmpDir))
+      .filter((entry) => /^page-\d+\.png$/i.test(entry))
+      .sort((left, right) => {
+        const leftPage = Number(left.match(/page-(\d+)\.png/i)?.[1] ?? 0);
+        const rightPage = Number(right.match(/page-(\d+)\.png/i)?.[1] ?? 0);
+        return leftPage - rightPage;
+      })
+      .map((entry) => path.join(tmpDir, entry));
+
+    const pagesWithText = await Promise.all(imagePaths.map(async (imagePath, index) => {
+      const { stdout } = await execFileAsync("tesseract", [imagePath, "stdout", "--psm", "6"]);
+      return {
         page_number: index + 1,
-        text: pageText,
-      }));
-    return {
-      text: pages.map((page) => page.text).join("\n\n").trim(),
-      pageCount: pages.length > 0 ? pages.length : null,
-      pages: pages.length > 0 ? pages : null,
-    };
+        text: stdout.trim(),
+      };
+    }));
+
+    const pages = pagesWithText.filter((page) => page.text.length > 0);
+    return buildParsedDocument(pages, imagePaths.length > 0 ? imagePaths.length : null);
   } catch {
     throw new Error("pdf_text_extraction_unavailable");
   } finally {
@@ -63,7 +112,11 @@ export async function extractDocumentText(args: {
   }
 
   if (extension === ".pdf") {
-    return extractPdfTextWithCli(args.buffer);
+    const parsed = await extractPdfTextWithCli(args.buffer);
+    if (hasUsableExtractedText(parsed)) {
+      return parsed;
+    }
+    return extractPdfTextWithOcr(args.buffer);
   }
 
   throw new Error("unsupported_format");

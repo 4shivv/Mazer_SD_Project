@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { EventEmitter } from "events";
 import {
   capacityGate,
+  getConfiguredMaxConcurrentSessions,
   initCapacityTracking,
   getActiveSessionCount,
-  MAX_CONCURRENT_SESSIONS,
 } from "../capacityGate.js";
 
 /** Minimal mock Express request. */
@@ -51,11 +51,12 @@ describe("capacityGate", () => {
   });
 
   it("returns 503 with server_at_capacity envelope when at MAX", () => {
+    const maxConcurrentSessions = getConfiguredMaxConcurrentSessions();
     // Fill to capacity
-    for (let i = 0; i < MAX_CONCURRENT_SESSIONS; i++) {
+    for (let i = 0; i < maxConcurrentSessions; i++) {
       capacityGate(mockReq(), mockRes(), () => {});
     }
-    expect(getActiveSessionCount()).toBe(MAX_CONCURRENT_SESSIONS);
+    expect(getActiveSessionCount()).toBe(maxConcurrentSessions);
 
     // Next request should be rejected
     let nextCalled = false;
@@ -66,14 +67,15 @@ describe("capacityGate", () => {
     expect(res.statusCode).toBe(503);
     expect(res._json).toEqual({
       error: "server_at_capacity",
-      message: `Maximum concurrent sessions (${MAX_CONCURRENT_SESSIONS}) reached. Queued.`,
+      message: `Maximum concurrent sessions (${maxConcurrentSessions}) reached. Queued.`,
       queue_position: 1,
       estimated_wait_seconds: 60,
     });
   });
 
   it("includes queue_position as positive integer and estimated_wait_seconds as positive number", () => {
-    for (let i = 0; i < MAX_CONCURRENT_SESSIONS; i++) {
+    const maxConcurrentSessions = getConfiguredMaxConcurrentSessions();
+    for (let i = 0; i < maxConcurrentSessions; i++) {
       capacityGate(mockReq(), mockRes(), () => {});
     }
 
@@ -149,7 +151,7 @@ describe("capacityGate", () => {
     expect(getActiveSessionCount()).toBe(3);
   });
 
-  it("MAX_CONCURRENT_SESSIONS is 12", () => {
-    expect(MAX_CONCURRENT_SESSIONS).toBe(12);
+  it("defaults max concurrent sessions to 12 for the baseline q4 model", () => {
+    expect(getConfiguredMaxConcurrentSessions()).toBe(12);
   });
 });

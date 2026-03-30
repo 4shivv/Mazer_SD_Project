@@ -1,7 +1,8 @@
 import { Router } from "express";
 import mongoose from "mongoose";
 import { getGpuTelemetry } from "../middleware/thermalGate.js";
-import { getActiveSessionCount, MAX_CONCURRENT_SESSIONS } from "../middleware/capacityGate.js";
+import { getActiveSessionCount, getConfiguredMaxConcurrentSessions } from "../middleware/capacityGate.js";
+import { getInternalTransportSecurityStatus } from "../runtime/internalTransportSecurity.js";
 
 export const healthRouter = Router();
 
@@ -46,6 +47,8 @@ healthRouter.get("/", async (_req, res) => {
 
   const gpu = getGpuTelemetry();
   const activeSessions = getActiveSessionCount();
+  const maxConcurrentSessions = getConfiguredMaxConcurrentSessions();
+  const transportSecurity = getInternalTransportSecurityStatus();
 
   const allUp =
     mongoStatus === "up" &&
@@ -58,6 +61,12 @@ healthRouter.get("/", async (_req, res) => {
     mongodb: mongoStatus,
     chromadb: chromaStatus,
     ollama: ollamaStatus,
+    transport_security: {
+      mode: transportSecurity.mode,
+      compliant: transportSecurity.compliant,
+      enforcement: transportSecurity.enforcement,
+      reason: transportSecurity.reason,
+    },
     gpu: {
       available: gpu.available,
       ...(gpu.available
@@ -69,6 +78,6 @@ healthRouter.get("/", async (_req, res) => {
         : {}),
     },
     active_sessions: activeSessions,
-    max_sessions: MAX_CONCURRENT_SESSIONS,
+    max_sessions: maxConcurrentSessions,
   });
 });

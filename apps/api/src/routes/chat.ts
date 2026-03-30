@@ -22,6 +22,7 @@ import {
   type SourceReference,
 } from "../services/documents/documentService.js";
 import { resolveInstructorConfigForChatActor } from "../services/instructor/instructorConfigService.js";
+import { ModelPolicyError, resolveChatModel } from "../runtime/modelPolicy.js";
 
 export const router = Router();
 
@@ -261,11 +262,12 @@ router.post("/chat", requireAuth, capacityGate, thermalGate, async (req, res) =>
       conversation_id,
       prompt,
       system,
-      model = process.env.OLLAMA_MODEL || "llama3.2:3b",
+      model: requestedModel,
       enable_rag = true,
       max_rag_chunks = 3,
       stream = false,
     } = parsed.data;
+    const model = resolveChatModel(requestedModel);
     const chatConfig = await resolveInstructorConfigForChatActor({
       actorUserId: req.user!.id,
     });
@@ -554,6 +556,9 @@ router.post("/chat", requireAuth, capacityGate, thermalGate, async (req, res) =>
       warning: ragWarning,
     });
   } catch (err: any) {
+    if (err instanceof ModelPolicyError) {
+      return res.status(err.status).json({ error: err.code, message: err.message });
+    }
     if (err instanceof ChatHistoryServiceError) {
       return res.status(err.status).json({ error: err.code, message: err.message });
     }

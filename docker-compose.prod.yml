@@ -1,0 +1,193 @@
+name: mazerai
+
+services:
+  web:
+    build:
+      context: ./apps/web
+      target: production
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    volumes:
+      - ./ops/tls/ca:/tls/ca:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - mazerai_net
+
+  api-tls:
+    build:
+      context: ./docker/stunnel
+    restart: unless-stopped
+    environment:
+      ACCEPT_PORT: 4000
+      CONNECT_HOST: 127.0.0.1
+      CONNECT_PORT: 4001
+      SERVICE_CERT: /tls/services/api-tls.crt
+      SERVICE_KEY: /tls/services/api-tls.key
+    volumes:
+      - ./ops/tls:/tls:ro
+    ports:
+      - "${API_PORT:-4000}:4000"
+    networks:
+      - mazerai_net
+
+  api:
+    build:
+      context: ./apps/api
+      target: production
+    restart: unless-stopped
+    init: true
+    network_mode: "service:api-tls"
+    environment:
+      NODE_ENV: production
+      PORT: 4001
+      MONGO_URL: ${MONGO_URL:-mongodb://mongo-tls:27017/mazerai?tls=true}
+      MONGO_TLS_CA_FILE: /tls/ca/ca.crt
+      NODE_EXTRA_CA_CERTS: /tls/ca/ca.crt
+      OLLAMA_HOST: ${OLLAMA_HOST:-https://ollama-tls:11434}
+      CHROMA_HOST: ${CHROMA_HOST:-https://chroma-tls:8000}
+      CHROMA_COLLECTION: ${CHROMA_COLLECTION:-ew_training_materials}
+      CHROMA_TENANT: ${CHROMA_TENANT:-default_tenant}
+      CHROMA_DATABASE: ${CHROMA_DATABASE:-default_database}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3:8b-q4_K_M}
+      OLLAMA_ALLOWED_CHAT_MODELS: ${OLLAMA_ALLOWED_CHAT_MODELS:-llama3:8b-q4_K_M,mistral:7b-q4_0,llama3:13b-q4_0}
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
+      RETENTION_SWEEP_INTERVAL_MS: ${RETENTION_SWEEP_INTERVAL_MS:-60000}
+      INTERNAL_TLS_MODE: ${INTERNAL_TLS_MODE:-required}
+      LOG_DIR: ${LOG_DIR:-/mnt/hdd/logs}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      JWT_SECRET: ${JWT_SECRET:-change-me-production-secret}
+      OLLAMA_MODEL_STORAGE_PATHS: ${OLLAMA_MODEL_STORAGE_PATHS:-/root/.ollama/models}
+      OLLAMA_CACHE_PATHS: ${OLLAMA_CACHE_PATHS:-}
+    volumes:
+      - ${HOST_LOG_DIR:-/mnt/hdd/logs}:${LOG_DIR:-/mnt/hdd/logs}
+      - ./ops/tls:/tls:ro
+    depends_on:
+      mongo:
+        condition: service_healthy
+      chroma:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4001/api/health').then((res)=>process.exit(res.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  ollama-tls:
+    build:
+      context: ./docker/stunnel
+    restart: unless-stopped
+    environment:
+      ACCEPT_PORT: 11434
+      CONNECT_HOST: 127.0.0.1
+      CONNECT_PORT: 11435
+      SERVICE_CERT: /tls/services/ollama-tls.crt
+      SERVICE_KEY: /tls/services/ollama-tls.key
+    volumes:
+      - ./ops/tls:/tls:ro
+    networks:
+      - mazerai_net
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    network_mode: "service:ollama-tls"
+    environment:
+      OLLAMA_HOST: 127.0.0.1:11435
+    volumes:
+      - ${HOST_OLLAMA_DATA_DIR:-/mnt/nvme/ollama}:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "OLLAMA_HOST=127.0.0.1:11435 ollama list >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  mongo-tls:
+    build:
+      context: ./docker/stunnel
+    restart: unless-stopped
+    environment:
+      ACCEPT_PORT: 27017
+      CONNECT_HOST: 127.0.0.1
+      CONNECT_PORT: 27018
+      SERVICE_CERT: /tls/services/mongo-tls.crt
+      SERVICE_KEY: /tls/services/mongo-tls.key
+    volumes:
+      - ./ops/tls:/tls:ro
+    networks:
+      - mazerai_net
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    network_mode: "service:mongo-tls"
+    command: ["mongod", "--bind_ip", "127.0.0.1", "--port", "27018", "--wiredTigerCacheSizeGB", "${MONGO_WIREDTIGER_CACHE_GB:-12}"]
+    volumes:
+      - ${HOST_MONGO_DATA_DIR:-/mnt/nvme/mongodb}:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet mongodb://127.0.0.1:27018/admin --eval 'quit(db.runCommand({ ping: 1 }).ok ? 0 : 1)'",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  chroma-tls:
+    build:
+      context: ./docker/stunnel
+    restart: unless-stopped
+    environment:
+      ACCEPT_PORT: 8000
+      CONNECT_HOST: 127.0.0.1
+      CONNECT_PORT: 8001
+      SERVICE_CERT: /tls/services/chroma-tls.crt
+      SERVICE_KEY: /tls/services/chroma-tls.key
+    volumes:
+      - ./ops/tls:/tls:ro
+    networks:
+      - mazerai_net
+
+  chroma:
+    image: chromadb/chroma:latest
+    restart: unless-stopped
+    network_mode: "service:chroma-tls"
+    environment:
+      CHROMA_PORT: 8001
+      CHROMA_LISTEN_ADDRESS: 127.0.0.1
+    volumes:
+      - ${HOST_CHROMA_DATA_DIR:-/mnt/nvme/chromadb}:/chroma
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import sys, urllib.request; response = urllib.request.urlopen('http://127.0.0.1:8001/api/v2/healthcheck', timeout=5); sys.exit(0 if response.status == 200 else 1)\"",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+networks:
+  mazerai_net:
+    name: mazerai_net

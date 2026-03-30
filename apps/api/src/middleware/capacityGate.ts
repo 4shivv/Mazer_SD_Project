@@ -1,10 +1,13 @@
 import { Request, Response, NextFunction } from "express";
+import { getMaxConcurrentSessions } from "../runtime/modelPolicy.js";
 
 /**
  * Maximum concurrent chat sessions allowed (FR-033, NFR-P4).
- * Derived from VRAM budget: (24GB - 5GB model - 2GB overhead) / 1.5GB per session ≈ 11.3 → 12 practical max.
+ * Derived from the approved q4 model lineup and associated VRAM budgets.
  */
-export const MAX_CONCURRENT_SESSIONS = 12;
+export function getConfiguredMaxConcurrentSessions(): number {
+  return getMaxConcurrentSessions();
+}
 
 /**
  * Estimated seconds per queued session for wait-time calculation (FR-034).
@@ -41,14 +44,16 @@ export function getActiveSessionCount(): number {
  *   - Decrements on response close/finish (whichever fires first).
  */
 export function capacityGate(req: Request, res: Response, next: NextFunction): void {
-  if (activeSessionCount >= MAX_CONCURRENT_SESSIONS) {
+  const maxConcurrentSessions = getConfiguredMaxConcurrentSessions();
+
+  if (activeSessionCount >= maxConcurrentSessions) {
     // Queue position is 1-indexed: how many are waiting ahead + this one
-    const queuePosition = activeSessionCount - MAX_CONCURRENT_SESSIONS + 1;
+    const queuePosition = activeSessionCount - maxConcurrentSessions + 1;
     const waitSeconds = queuePosition * ESTIMATED_WAIT_PER_SESSION_S;
     res.set("Retry-After", String(waitSeconds));
     res.status(503).json({
       error: "server_at_capacity",
-      message: `Maximum concurrent sessions (${MAX_CONCURRENT_SESSIONS}) reached. Queued.`,
+      message: `Maximum concurrent sessions (${maxConcurrentSessions}) reached. Queued.`,
       queue_position: queuePosition,
       estimated_wait_seconds: waitSeconds,
     });

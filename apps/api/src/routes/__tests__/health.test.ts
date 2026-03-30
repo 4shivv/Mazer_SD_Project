@@ -8,7 +8,11 @@ vi.mock("../../middleware/thermalGate.js", () => ({
 // Mock capacityGate module
 vi.mock("../../middleware/capacityGate.js", () => ({
   getActiveSessionCount: vi.fn(),
-  MAX_CONCURRENT_SESSIONS: 12,
+  getConfiguredMaxConcurrentSessions: vi.fn(),
+}));
+
+vi.mock("../../runtime/internalTransportSecurity.js", () => ({
+  getInternalTransportSecurityStatus: vi.fn(),
 }));
 
 // Mock mongoose
@@ -24,7 +28,8 @@ vi.stubGlobal("fetch", mockFetch);
 
 import { healthRouter } from "../health.js";
 import { getGpuTelemetry } from "../../middleware/thermalGate.js";
-import { getActiveSessionCount } from "../../middleware/capacityGate.js";
+import { getActiveSessionCount, getConfiguredMaxConcurrentSessions } from "../../middleware/capacityGate.js";
+import { getInternalTransportSecurityStatus } from "../../runtime/internalTransportSecurity.js";
 import mongoose from "mongoose";
 
 /** Helper: call GET / on healthRouter */
@@ -66,6 +71,13 @@ describe("GET /api/health", () => {
       vram_total_mb: 24576,
     });
     (getActiveSessionCount as any).mockReturnValue(3);
+    (getConfiguredMaxConcurrentSessions as any).mockReturnValue(12);
+    (getInternalTransportSecurityStatus as any).mockReturnValue({
+      mode: "development",
+      compliant: false,
+      enforcement: "none",
+      reason: "development_mode_allows_non_tls_internal_endpoints",
+    });
   });
 
   it("returns 200 with all services up and status ok", async () => {
@@ -76,6 +88,8 @@ describe("GET /api/health", () => {
     expect(res._json.mongodb).toBe("up");
     expect(res._json.chromadb).toBe("up");
     expect(res._json.ollama).toBe("up");
+    expect(res._json.transport_security.mode).toBe("development");
+    expect(res._json.transport_security.enforcement).toBe("none");
     expect(res._json.gpu.available).toBe(true);
     expect(res._json.gpu.temperature_c).toBe(65);
     expect(res._json.gpu.vram_used_mb).toBe(7000);
@@ -147,5 +161,23 @@ describe("GET /api/health", () => {
     expect(res._json.chromadb).toBe("down");
     expect(res._json.ollama).toBe("down");
     expect(res._json.gpu.available).toBe(false);
+  });
+
+  it("surfaces explicit transport-security variance in health output", async () => {
+    (getInternalTransportSecurityStatus as any).mockReturnValue({
+      mode: "disabled-explicit",
+      compliant: false,
+      enforcement: "variance",
+      reason: "internal_tls_not_enabled_explicit_variance_recorded",
+    });
+
+    const res = await callHealthEndpoint();
+
+    expect(res._json.transport_security).toEqual({
+      mode: "disabled-explicit",
+      compliant: false,
+      enforcement: "variance",
+      reason: "internal_tls_not_enabled_explicit_variance_recorded",
+    });
   });
 });

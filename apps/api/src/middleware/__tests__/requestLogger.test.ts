@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { requestLogger } from "../requestLogger.js";
+import { requestLogger, resolveLogDir } from "../requestLogger.js";
 
 describe("requestLogger", () => {
   it("exports a function with Express middleware signature", () => {
@@ -11,6 +11,17 @@ describe("requestLogger", () => {
   it("has a logger instance attached", () => {
     // pino-http attaches a .logger property to the middleware
     expect((requestLogger as any).logger).toBeDefined();
+  });
+
+  it("uses the production log path by default in production mode", () => {
+    expect(resolveLogDir({ NODE_ENV: "production" } as NodeJS.ProcessEnv)).toBe("/mnt/hdd/logs");
+  });
+
+  it("preserves an explicitly configured log path", () => {
+    expect(resolveLogDir({
+      NODE_ENV: "production",
+      LOG_DIR: " /custom/logs ",
+    } as NodeJS.ProcessEnv)).toBe("/custom/logs");
   });
 
   it("serializers redact authorization and cookie headers", () => {

@@ -2,8 +2,16 @@ import { pinoHttp } from "pino-http";
 import pino from "pino";
 import type { IncomingMessage, ServerResponse } from "http";
 
-const LOG_DIR = process.env.LOG_DIR || "./logs";
+const DEFAULT_DEV_LOG_DIR = "./logs";
+const DEFAULT_PRODUCTION_LOG_DIR = "/mnt/hdd/logs";
+const LOG_DIR = resolveLogDir();
 const LOG_LEVEL = process.env.LOG_LEVEL || "info";
+
+export function resolveLogDir(env: NodeJS.ProcessEnv = process.env) {
+  const configured = env.LOG_DIR?.trim();
+  if (configured) return configured;
+  return env.NODE_ENV === "production" ? DEFAULT_PRODUCTION_LOG_DIR : DEFAULT_DEV_LOG_DIR;
+}
 
 /**
  * Pino transport targets: structured JSON to file + pretty to stdout in dev.
