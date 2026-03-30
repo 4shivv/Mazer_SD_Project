@@ -10,9 +10,108 @@ type Props = {
   onClose: () => void;
   onNewChat: () => Promise<void> | void;
   historyRefreshKey?: number;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
 };
 
-export default function Sidebar({ open, onClose, onNewChat, historyRefreshKey = 0 }: Props) {
+function IconNewChat() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+    </svg>
+  );
+}
+
+function IconSearch() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.35-4.35" />
+    </svg>
+  );
+}
+
+function IconLibrary() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+      <path d="M8 7h8M8 11h6" />
+    </svg>
+  );
+}
+
+function IconUpload() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
+  );
+}
+
+function IconSettings() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+    </svg>
+  );
+}
+
+function IconAdmin() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  );
+}
+
+function IconKnowledgeBase() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2v1" />
+      <ellipse cx="12" cy="13" rx="5" ry="2" />
+      <path d="M7 13v3c0 1.1 2.2 2 5 2s5-.9 5-2v-3" />
+    </svg>
+  );
+}
+
+function IconProfile() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
+
+function IconChevronLeft() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
+}
+
+function IconChevronRight() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
+  );
+}
+
+export default function Sidebar({
+  open,
+  onClose,
+  onNewChat,
+  historyRefreshKey = 0,
+  collapsed = false,
+  onToggleCollapsed,
+}: Props) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const activeSid = searchParams.get("sid");
@@ -78,6 +177,10 @@ export default function Sidebar({ open, onClose, onNewChat, historyRefreshKey = 
   }, [searchOpen]);
 
   useEffect(() => {
+    if (collapsed) setSearchOpen(false);
+  }, [collapsed]);
+
+  useEffect(() => {
     if (!menuOpenId) return;
     function handleDocClick(e: MouseEvent) {
       const t = e.target as HTMLElement | null;
@@ -113,6 +216,18 @@ export default function Sidebar({ open, onClose, onNewChat, historyRefreshKey = 
     return () => window.removeEventListener("keydown", onKey);
   }, [deleteTarget, deletePending]);
 
+  useEffect(() => {
+    if (!searchOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setSearchOpen(false);
+        setSearchQuery("");
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [searchOpen]);
+
   function goTo(path: string) {
     navigate(path);
     onClose();
@@ -123,14 +238,18 @@ export default function Sidebar({ open, onClose, onNewChat, historyRefreshKey = 
     onClose();
   }
 
-  function toggleSearch() {
-    setSearchOpen((current) => {
-      const next = !current;
-      if (!next) {
-        setSearchQuery("");
-      }
-      return next;
-    });
+  function openSearchModal() {
+    setSearchOpen(true);
+  }
+
+  function closeSearchModal() {
+    setSearchOpen(false);
+    setSearchQuery("");
+  }
+
+  function selectChatFromSearch(sessionId: string) {
+    closeSearchModal();
+    openChat(sessionId);
   }
 
   async function saveRename() {
@@ -185,7 +304,9 @@ export default function Sidebar({ open, onClose, onNewChat, historyRefreshKey = 
         onClick={onClose}
       />
 
-      <aside className={`${styles.sidebar} ${open ? styles.open : ""}`}>
+      <aside
+        className={`${styles.sidebar} ${open ? styles.open : ""} ${collapsed ? styles.sidebarCollapsed : ""}`}
+      >
         <div className={styles.brandRow}>
           <button
             className={styles.iconBtn}
@@ -194,38 +315,80 @@ export default function Sidebar({ open, onClose, onNewChat, historyRefreshKey = 
           >
             ⟵
           </button>
-          <div className={styles.brand}>Mazer</div>
-        </div>
-
-        <div className={styles.section}>
+          {onToggleCollapsed && (
+            <button
+              type="button"
+              className={styles.collapseDesktopBtn}
+              onClick={onToggleCollapsed}
+              aria-label={collapsed ? "Expand sidebar" : "Minimize sidebar"}
+              title={collapsed ? "Expand sidebar" : "Minimize sidebar"}
+            >
+              {collapsed ? <IconChevronRight /> : <IconChevronLeft />}
+            </button>
+          )}
           <button
-            className={styles.item}
+            type="button"
+            className={`${styles.brand} ${styles.brandButton}`}
+            title="New chat"
+            aria-label="Mazer, start new chat"
             onClick={() => {
               onNewChat();
               onClose();
               void refreshSessions();
             }}
           >
-            New Chat
+            <span className={styles.brandAccent} aria-hidden="true" />
+            <span className={styles.brandText}>Mazer</span>
+          </button>
+        </div>
+
+        <div className={styles.section}>
+          <button
+            type="button"
+            className={styles.item}
+            title="New chat"
+            onClick={() => {
+              onNewChat();
+              onClose();
+              void refreshSessions();
+            }}
+          >
+            <span className={styles.itemIcon}>
+              <IconNewChat />
+            </span>
+            <span className={styles.itemLabel}>New Chat</span>
           </button>
 
           <button
+            type="button"
             className={styles.item}
-            onClick={toggleSearch}
+            title="Search chats"
+            onClick={openSearchModal}
           >
-            {searchOpen ? "Close Search" : "Search Chats"}
+            <span className={styles.itemIcon}>
+              <IconSearch />
+            </span>
+            <span className={styles.itemLabel}>Search Chats</span>
           </button>
 
-          <button className={styles.item} onClick={() => goTo("/library")}>
-            Library
+          <button type="button" className={styles.item} title="Library" onClick={() => goTo("/library")}>
+            <span className={styles.itemIcon}>
+              <IconLibrary />
+            </span>
+            <span className={styles.itemLabel}>Library</span>
           </button>
 
           {isInstructor && (
             <button
+              type="button"
               className={styles.item}
+              title="Upload documents"
               onClick={() => goTo("/instructor/upload")}
             >
-              Upload Documents
+              <span className={styles.itemIcon}>
+                <IconUpload />
+              </span>
+              <span className={styles.itemLabel}>Upload Documents</span>
             </button>
           )}
         </div>
@@ -236,10 +399,15 @@ export default function Sidebar({ open, onClose, onNewChat, historyRefreshKey = 
             <div className={styles.section}>
               <div className={styles.sectionTitle}>Instructor</div>
               <button
+                type="button"
                 className={styles.item}
+                title="Settings"
                 onClick={() => goTo("/instructor/settings")}
               >
-                Settings
+                <span className={styles.itemIcon}>
+                  <IconSettings />
+                </span>
+                <span className={styles.itemLabel}>Settings</span>
               </button>
             </div>
           </>
@@ -250,58 +418,48 @@ export default function Sidebar({ open, onClose, onNewChat, historyRefreshKey = 
             <div className={styles.divider} />
             <div className={styles.section}>
               <div className={styles.sectionTitle}>Admin</div>
-              <button className={styles.item} onClick={() => goTo("/admin")}>
-                Admin Controls
+              <button type="button" className={styles.item} title="Admin" onClick={() => goTo("/admin")}>
+                <span className={styles.itemIcon}>
+                  <IconAdmin />
+                </span>
+                <span className={styles.itemLabel}>Admin Controls</span>
               </button>
               <button
+                type="button"
                 className={styles.item}
+                title="Knowledge base"
                 onClick={() => goTo("/admin/upload")}
               >
-                Manage Knowledge Base
+                <span className={styles.itemIcon}>
+                  <IconKnowledgeBase />
+                </span>
+                <span className={styles.itemLabel}>Manage Knowledge Base</span>
               </button>
             </div>
           </>
         )}
 
-        <div className={styles.divider} />
+        <div className={`${styles.divider} ${styles.hideWhenCollapsed}`} />
 
-        <div className={styles.section}>
-          <div className={styles.sectionTitle}>History</div>
-
-          {searchOpen && (
-            <div className={styles.searchBox}>
-              <input
-                ref={searchInputRef}
-                className={styles.searchInput}
-                type="search"
-                placeholder="Search saved chat titles"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              <div className={styles.searchMeta}>
-                {normalizedSearchQuery
-                  ? `${filteredSessions.length} result${filteredSessions.length === 1 ? "" : "s"}`
-                  : `Searching ${sessions.length} saved chat${sessions.length === 1 ? "" : "s"}`}
-              </div>
-            </div>
-          )}
+        <div className={`${styles.section} ${styles.historySection}`}>
+          <div className={styles.sectionTitle}>Chats</div>
 
           {historyError && <div className={styles.emptyHistory}>{historyError}</div>}
           {loadingHistory && <div className={styles.emptyHistory}>Loading chats...</div>}
 
           {!loadingHistory && sessions.length === 0 ? (
             <div className={styles.emptyHistory}>No chats yet.</div>
-          ) : searchOpen && normalizedSearchQuery && filteredSessions.length === 0 ? (
-            <div className={styles.emptyHistory}>No saved chats match that title.</div>
           ) : (
-            (searchOpen ? filteredSessions : sessions)
-              .slice(0, searchOpen ? 100 : 15)
-              .map((s) => (
-              <div key={s.id} className={styles.historyRow}>
+            sessions.slice(0, 15).map((s) => (
+              <div
+                key={s.id}
+                className={`${styles.historyRow} ${activeSid === s.id ? styles.historyRowActive : ""}`}
+              >
                 <button
                   type="button"
                   className={styles.historyItem}
                   title={s.title}
+                  aria-current={activeSid === s.id ? "page" : undefined}
                   onClick={() => openChat(s.id)}
                 >
                   {s.title || "Chat"}
@@ -354,10 +512,15 @@ export default function Sidebar({ open, onClose, onNewChat, historyRefreshKey = 
 
         <div className={styles.footer}>
           <button
-            className={styles.footerItem}
+            type="button"
+            className={`${styles.footerItem} ${styles.item}`}
+            title="Profile"
             onClick={() => goTo("/profile")}
           >
-            Profile
+            <span className={styles.itemIcon}>
+              <IconProfile />
+            </span>
+            <span className={styles.itemLabel}>Profile</span>
           </button>
         </div>
       </aside>
@@ -409,6 +572,69 @@ export default function Sidebar({ open, onClose, onNewChat, historyRefreshKey = 
                 disabled={!renameDraft.trim()}
               >
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {searchOpen && (
+        <div
+          className={styles.renameOverlay}
+          role="presentation"
+          onClick={closeSearchModal}
+        >
+          <div
+            className={`${styles.renameModal} ${styles.searchModalDialog}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="search-chats-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="search-chats-title" className={styles.renameTitle}>
+              Search chats
+            </h2>
+            <div className={styles.searchBox}>
+              <input
+                ref={searchInputRef}
+                className={styles.searchInput}
+                type="search"
+                placeholder="Search saved chat titles"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    e.stopPropagation();
+                    closeSearchModal();
+                  }
+                }}
+              />
+              <div className={styles.searchMeta}>
+                {normalizedSearchQuery
+                  ? `${filteredSessions.length} result${filteredSessions.length === 1 ? "" : "s"}`
+                  : `${sessions.length} saved chat${sessions.length === 1 ? "" : "s"}`}
+              </div>
+            </div>
+            <div className={styles.searchModalList}>
+              {!loadingHistory && normalizedSearchQuery && filteredSessions.length === 0 ? (
+                <div className={styles.emptyHistory}>No saved chats match that title.</div>
+              ) : (
+                filteredSessions.slice(0, 100).map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className={styles.searchModalRow}
+                    title={s.title}
+                    onClick={() => selectChatFromSearch(s.id)}
+                  >
+                    {s.title || "Chat"}
+                  </button>
+                ))
+              )}
+            </div>
+            <div className={styles.renameActions}>
+              <button type="button" className={styles.renameCancel} onClick={closeSearchModal}>
+                Close
               </button>
             </div>
           </div>

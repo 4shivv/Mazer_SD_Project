@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import Sidebar from "./Sidebar";
 
@@ -35,11 +35,13 @@ describe("Sidebar search", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Search Chats" }));
-    fireEvent.change(screen.getByPlaceholderText("Search saved chat titles"), {
+
+    const dialog = screen.getByRole("dialog", { name: /search chats/i });
+    fireEvent.change(within(dialog).getByPlaceholderText("Search saved chat titles"), {
       target: { value: "radar" },
     });
 
-    expect(screen.getByText("Radar troubleshooting")).toBeInTheDocument();
-    expect(screen.queryByText("EW notes")).not.toBeInTheDocument();
+    expect(within(dialog).getByText("Radar troubleshooting")).toBeInTheDocument();
+    expect(within(dialog).queryByText("EW notes")).not.toBeInTheDocument();
   });
 });

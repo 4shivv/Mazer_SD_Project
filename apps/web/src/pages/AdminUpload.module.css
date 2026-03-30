@@ -1,0 +1,57 @@
+/* Viewport-fitted upload page: no outer page scroll; middle section scrolls when needed. */
+.uploadWrap {
+  min-height: 100dvh;
+  min-height: 100vh;
+  padding: 16px 20px;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.uploadCard {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 16px);
+  max-height: calc(100vh - 16px);
+  min-height: 0;
+  width: min(760px, 96vw);
+  padding: 28px 32px 20px;
+}
+
+.uploadCard h1 {
+  flex-shrink: 0;
+  font-size: clamp(1.5rem, 3.5vw, 2.05rem);
+  line-height: 1.2;
+}
+
+.uploadBody {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  /* visible so native <select> menus are not clipped by overflow */
+  overflow: visible;
+  margin-top: 2px;
+}
+
+/* Fixed header area: stats, document type, drop zone — not in a scroll container */
+.uploadTop {
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+/* Only the document list / status area scrolls; keeps select dropdowns uncropped */
+.uploadScroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 6px;
+  margin-top: 0.15rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.footer {
+  flex-shrink: 0;
+  margin-top: 0.85rem;
+  padding-top: 4px;
+}

@@ -1,8 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import AuthCard from "../components/AuthCard";
+import PasswordVisibilityIcon from "../components/PasswordVisibilityIcon";
 import styles from "./Login.module.css";
 import { useState } from "react";
 import * as Auth from "../lib/auth";
+import { formatRegisterApiError, validateRegisterForm } from "../lib/registerErrors";
 import { useAuth } from "../app/AuthProvider";
 
 type AccountType = "trainee" | "instructor";
@@ -13,6 +15,7 @@ export default function Register() {
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [accountType, setAccountType] = useState<AccountType>("trainee");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -22,6 +25,13 @@ export default function Register() {
     e.preventDefault();
     setError("");
     setNotice("");
+
+    const clientMsg = validateRegisterForm(identifier, password);
+    if (clientMsg) {
+      setError(clientMsg);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -34,12 +44,9 @@ export default function Register() {
         setUser(res.user);
         nav(res.user.role === "admin" ? "/admin" : "/chat", { replace: true });
       }
-    } catch (err: any) {
-      if (err?.message === "admin_self_register_forbidden") {
-        setError("Admin self-registration is disabled.");
-      } else {
-        setError(err?.message || "Registration failed");
-      }
+    } catch (err: unknown) {
+      const raw = err instanceof Error ? err.message : String(err);
+      setError(formatRegisterApiError(raw));
     } finally {
       setLoading(false);
     }
@@ -88,14 +95,29 @@ export default function Register() {
           <input
             className={styles.field}
             placeholder="Password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             name="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="new-password"
             required
+            minLength={8}
+            aria-describedby="register-password-hint"
           />
+          <button
+            type="button"
+            className={styles.passwordToggle}
+            onClick={() => setShowPassword((v) => !v)}
+            title={showPassword ? "Hide password" : "Show password"}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-pressed={showPassword}
+          >
+            <PasswordVisibilityIcon visible={showPassword} />
+          </button>
         </div>
+        <p id="register-password-hint" className={styles.fieldHint}>
+          Password must be at least 8 characters.
+        </p>
 
         <button className={styles.submit} type="submit" disabled={loading}>
           {loading ? "Creating..." : "Create Account"}

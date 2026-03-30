@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import AuthCard from "../components/AuthCard";
+import PasswordVisibilityIcon from "../components/PasswordVisibilityIcon";
 import styles from "./Login.module.css";
 import * as Auth from "../lib/auth";
 import { useAuth } from "../app/AuthProvider";
@@ -49,27 +50,26 @@ export default function LoginTrainee() {
           autoComplete="username"
           required
         />
-        <div className={styles.passwordRow}>
-          <div className={styles.passwordWrap}>
-            <input
-              className={styles.field}
-              placeholder="Password"
-              type={showPassword ? "text" : "password"}
-              name="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              required
-            />
-          </div>
+        <div className={styles.passwordWrap}>
+          <input
+            className={styles.field}
+            placeholder="Password"
+            type={showPassword ? "text" : "password"}
+            name="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
           <button
             type="button"
             className={styles.passwordToggle}
             onClick={() => setShowPassword((v) => !v)}
             title={showPassword ? "Hide password" : "Show password"}
             aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-pressed={showPassword}
           >
-            {showPassword ? "Hide" : "Show"}
+            <PasswordVisibilityIcon visible={showPassword} />
           </button>
         </div>
         <button className={styles.submit} type="submit" disabled={loading}>

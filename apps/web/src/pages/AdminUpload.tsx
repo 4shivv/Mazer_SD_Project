@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../app/AuthProvider";
 import { useUploads } from "../app/UploadProvider";
 import AuthCard from "../components/AuthCard";
+import uploadStyles from "./AdminUpload.module.css";
 import {
   deleteDocument,
   listDocuments,
@@ -159,332 +160,337 @@ export default function AdminUpload() {
   const backPath = isAdmin ? "/admin" : "/chat";
 
   return (
-    <AuthCard title="Knowledge Base Management">
-      <p style={{ color: "var(--muted)", marginBottom: "1.5rem" }}>
-        Upload and manage training documents used by the retrieval pipeline.
-      </p>
+    <AuthCard
+      title="Knowledge Base Management"
+      wrapClassName={uploadStyles.uploadWrap}
+      cardClassName={uploadStyles.uploadCard}
+      bodyClassName={uploadStyles.uploadBody}
+    >
+      <div className={uploadStyles.uploadTop}>
+        <p style={{ color: "var(--muted)", margin: "0 0 0.85rem", fontSize: "0.95rem", lineHeight: 1.45 }}>
+          Upload and manage training documents used by the retrieval pipeline.
+        </p>
 
-      {errorBanner && (
-        <div
-          style={{
-            color: "#ffb4b4",
-            background: "rgba(255,80,80,0.08)",
-            border: "1px solid rgba(255,80,80,0.18)",
-            borderRadius: "10px",
-            padding: "0.75rem 1rem",
-            marginBottom: "1rem",
-            textAlign: "left",
-          }}
-        >
-          {errorBanner}
-        </div>
-      )}
-
-      {banner && (
-        <div
-          style={{
-            color: "#b6f0c2",
-            background: "rgba(70,170,90,0.08)",
-            border: "1px solid rgba(70,170,90,0.18)",
-            borderRadius: "10px",
-            padding: "0.75rem 1rem",
-            marginBottom: "1rem",
-            textAlign: "left",
-          }}
-        >
-          {banner}
-        </div>
-      )}
-
-      {refreshingDocs && !loadingDocs && (
-        <div
-          style={{
-            color: "var(--muted)",
-            marginBottom: "1rem",
-            fontSize: "0.9rem",
-            textAlign: "left",
-          }}
-        >
-          Refreshing document status...
-        </div>
-      )}
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-          gap: "0.75rem",
-          marginBottom: "1.5rem",
-        }}
-      >
-        {[
-          { label: "Total Documents", value: totalDocs },
-          { label: "Ready", value: readyDocs },
-          { label: "Processing", value: processingDocs },
-          { label: "Failed", value: failedDocs },
-        ].map((item) => (
+        {errorBanner && (
           <div
-            key={item.label}
             style={{
-              padding: "1rem",
+              color: "#ffb4b4",
+              background: "rgba(255,80,80,0.08)",
+              border: "1px solid rgba(255,80,80,0.18)",
               borderRadius: "10px",
-              background: "rgba(107,92,255,0.1)",
+              padding: "0.65rem 0.85rem",
+              marginBottom: "0.75rem",
+              textAlign: "left",
+              fontSize: "0.9rem",
+            }}
+          >
+            {errorBanner}
+          </div>
+        )}
+
+        {banner && (
+          <div
+            style={{
+              color: "#b6f0c2",
+              background: "rgba(70,170,90,0.08)",
+              border: "1px solid rgba(70,170,90,0.18)",
+              borderRadius: "10px",
+              padding: "0.65rem 0.85rem",
+              marginBottom: "0.75rem",
+              textAlign: "left",
+              fontSize: "0.9rem",
+            }}
+          >
+            {banner}
+          </div>
+        )}
+
+        {refreshingDocs && !loadingDocs && (
+          <div
+            style={{
+              color: "var(--muted)",
+              marginBottom: "0.55rem",
+              fontSize: "0.88rem",
               textAlign: "left",
             }}
           >
-            <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>{item.label}</div>
-            <div style={{ fontSize: "1.4rem", fontWeight: 700 }}>{item.value}</div>
+            Refreshing document status...
           </div>
-        ))}
-      </div>
+        )}
 
-      <div style={{ marginBottom: "1rem", textAlign: "left" }}>
-        <label style={{ display: "block", marginBottom: "0.45rem", color: "var(--muted)" }}>
-          Document Type
-        </label>
-        <select
-          value={documentType}
-          onChange={(e) => setDocumentType(e.target.value)}
-          disabled={!canManageDocuments}
-          style={{
-            width: "100%",
-            padding: "0.75rem",
-            borderRadius: "8px",
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: "rgba(10,11,16,0.55)",
-            color: "white",
-          }}
-        >
-          {DOCUMENT_TYPE_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div
-        onDragOver={(e) => {
-          if (!canManageDocuments) return;
-          e.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragging(false);
-          void addFiles(e.dataTransfer.files);
-        }}
-        style={{
-          border: "2px dashed rgba(255,255,255,0.15)",
-          borderRadius: "12px",
-          padding: "2rem",
-          textAlign: "center",
-          marginBottom: "1.5rem",
-          background: dragging ? "rgba(107,92,255,0.1)" : "transparent",
-          transition: "0.2s",
-          opacity: canManageDocuments ? 1 : 0.65,
-        }}
-      >
-        <div style={{ marginBottom: "0.75rem", fontWeight: 600 }}>
-          Upload Training Documents
-        </div>
-        <div style={{ marginBottom: "1rem", color: "var(--muted)" }}>
-          Drag and drop PDF, TXT, or MD files here to upload and process them for the knowledge base.
-        </div>
-
-        <label
-          style={{
-            display: "inline-block",
-            padding: "0.6rem 1.2rem",
-            background: canManageDocuments ? "#6b5cff" : "#555",
-            color: "#fff",
-            borderRadius: "8px",
-            cursor: canManageDocuments ? "pointer" : "not-allowed",
-          }}
-        >
-          {activeUploads.length > 0 ? "Add More Files" : "Browse Files"}
-          <input
-            type="file"
-            multiple
-            hidden
-            disabled={!canManageDocuments}
-            accept=".pdf,.txt,.md"
-            onChange={(e) => {
-              void addFiles(e.target.files);
-              e.currentTarget.value = "";
-            }}
-          />
-        </label>
-      </div>
-
-      {loadingDocs ? (
         <div
           style={{
-            color: "var(--muted)",
-            marginBottom: "1.5rem",
-            padding: "1rem",
-            borderRadius: "10px",
-            background: "rgba(255,255,255,0.03)",
-            textAlign: "left",
+            display: "grid",
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+            gap: "0.65rem",
+            marginBottom: "0.85rem",
           }}
         >
-          Loading documents...
-        </div>
-      ) : activeUploads.length > 0 ? (
-        <div style={{ marginBottom: "1.5rem" }}>
-          <div style={{ marginBottom: "0.75rem", fontWeight: 600, textAlign: "left" }}>
-            Upload In Progress
-          </div>
-          <div
-            style={{
-              padding: "0.95rem 1rem",
-              border: "1px solid rgba(107,92,255,0.18)",
-              borderRadius: "10px",
-              background: "rgba(107,92,255,0.08)",
-              textAlign: "left",
-            }}
-          >
-            <div style={{ fontWeight: 600, marginBottom: "0.35rem" }}>
-              Uploading and processing {activeUploads.length} file{activeUploads.length === 1 ? "" : "s"}...
-            </div>
-            <div style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: "0.75rem" }}>
-              These uploads will keep running even if you return to chat or leave this page.
-            </div>
-            <div style={{ display: "grid", gap: "0.55rem" }}>
-              {activeUploads.map((entry) => (
-                <div
-                  key={entry.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: "0.75rem",
-                    alignItems: "center",
-                    padding: "0.75rem 0.85rem",
-                    borderRadius: "8px",
-                    background: "rgba(10,11,16,0.26)",
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, overflowWrap: "anywhere" }}>{entry.fileName}</div>
-                    <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-                      Type: {formatStatus(entry.documentType)}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: "0.8rem", color: "#cdbfff", whiteSpace: "nowrap" }}>
-                    {entry.status === "queued"
-                      ? "Queued..."
-                      : entry.status === "uploading"
-                        ? "Uploading..."
-                        : "Processing..."}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : docs.length > 0 ? (
-        <div style={{ marginBottom: "1.5rem" }}>
-          <div style={{ marginBottom: "0.75rem", fontWeight: 600, textAlign: "left" }}>
-            Uploaded Documents
-          </div>
-
-          {docs.map((doc) => (
+          {[
+            { label: "Total", value: totalDocs },
+            { label: "Ready", value: readyDocs },
+            { label: "Processing", value: processingDocs },
+            { label: "Failed", value: failedDocs },
+          ].map((item) => (
             <div
-              key={doc.id}
+              key={item.label}
               style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: "1rem",
-                padding: "0.85rem 1rem",
-                border: "1px solid rgba(255,255,255,0.08)",
+                padding: "0.65rem 0.75rem",
                 borderRadius: "10px",
-                marginBottom: "0.75rem",
-                background: "rgba(10,11,16,0.35)",
+                background: "rgba(107,92,255,0.1)",
+                textAlign: "left",
               }}
             >
-              <div style={{ textAlign: "left" }}>
-                <div style={{ fontWeight: 600 }}>{doc.title}</div>
-                <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-                  {doc.original_filename} • {formatFileSize(doc.size_bytes)} • {formatStatus(doc.status)}
-                </div>
-                <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-                  Type: {formatStatus(doc.document_type)} • Chunks: {doc.chunk_count}
-                </div>
-                {doc.processing_error && (
-                  <div style={{ fontSize: "0.8rem", color: "#ffb4b4", marginTop: "0.35rem" }}>
-                    Error: {doc.processing_error}
-                  </div>
-                )}
-              </div>
-
-              <button
-                onClick={() => void removeDoc(doc.id)}
-                disabled={!canManageDocuments || deletingId === doc.id}
-                style={{
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  background: "transparent",
-                  color: "var(--muted)",
-                  borderRadius: "8px",
-                  padding: "0.45rem 0.85rem",
-                  cursor: canManageDocuments ? "pointer" : "not-allowed",
-                  flexShrink: 0,
-                  opacity: canManageDocuments ? 1 : 0.6,
-                }}
-              >
-                {deletingId === doc.id ? "Deleting..." : "Delete"}
-              </button>
+              <div style={{ fontSize: "0.78rem", color: "var(--muted)", lineHeight: 1.25 }}>{item.label}</div>
+              <div style={{ fontSize: "1.35rem", fontWeight: 700, lineHeight: 1.2 }}>{item.value}</div>
             </div>
           ))}
         </div>
-      ) : (
+
+        <div style={{ marginBottom: "0.75rem", textAlign: "left" }}>
+          <label
+            style={{ display: "block", marginBottom: "0.35rem", color: "var(--muted)", fontSize: "0.88rem" }}
+          >
+            Document Type
+          </label>
+          <select
+            value={documentType}
+            onChange={(e) => setDocumentType(e.target.value)}
+            disabled={!canManageDocuments}
+            style={{
+              width: "100%",
+              padding: "0.55rem 0.65rem",
+              borderRadius: "8px",
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(10,11,16,0.55)",
+              color: "white",
+              fontSize: "0.92rem",
+            }}
+          >
+            {DOCUMENT_TYPE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div
+          onDragOver={(e) => {
+            if (!canManageDocuments) return;
+            e.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragging(false);
+            void addFiles(e.dataTransfer.files);
+          }}
           style={{
-            color: "var(--muted)",
-            marginBottom: "1.5rem",
-            padding: "1rem",
-            borderRadius: "10px",
-            background: "rgba(255,255,255,0.03)",
-            textAlign: "left",
+            border: "2px dashed rgba(255,255,255,0.15)",
+            borderRadius: "12px",
+            padding: "1.15rem 1.25rem",
+            textAlign: "center",
+            marginBottom: "0.65rem",
+            background: dragging ? "rgba(107,92,255,0.1)" : "transparent",
+            transition: "0.2s",
+            opacity: canManageDocuments ? 1 : 0.65,
           }}
         >
-          No documents have been uploaded yet. Use an approved instructor account to push training material into
-          the knowledge base pipeline and test retrieval from the chat flow.
-        </div>
-      )}
+          <div style={{ marginBottom: "0.35rem", fontWeight: 600, fontSize: "1.05rem" }}>
+            Upload Training Documents
+          </div>
+          <div style={{ marginBottom: "0.65rem", color: "var(--muted)", fontSize: "0.88rem", lineHeight: 1.45 }}>
+            Drag and drop PDF, TXT, or MD files here, or browse to select.
+          </div>
 
-      <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+          <label
+            style={{
+              display: "inline-block",
+              padding: "0.55rem 1.15rem",
+              background: canManageDocuments ? "#6b5cff" : "#555",
+              color: "#fff",
+              borderRadius: "8px",
+              cursor: canManageDocuments ? "pointer" : "not-allowed",
+              fontSize: "0.92rem",
+            }}
+          >
+            {activeUploads.length > 0 ? "Add More Files" : "Browse Files"}
+            <input
+              type="file"
+              multiple
+              hidden
+              disabled={!canManageDocuments}
+              accept=".pdf,.txt,.md"
+              onChange={(e) => {
+                void addFiles(e.target.files);
+                e.currentTarget.value = "";
+              }}
+            />
+          </label>
+        </div>
+      </div>
+
+      <div className={uploadStyles.uploadScroll}>
+        {loadingDocs ? (
+          <div
+            style={{
+              color: "var(--muted)",
+              marginBottom: "0.65rem",
+              padding: "0.75rem 0.85rem",
+              borderRadius: "10px",
+              background: "rgba(255,255,255,0.03)",
+              textAlign: "left",
+              fontSize: "0.92rem",
+            }}
+          >
+            Loading documents...
+          </div>
+        ) : activeUploads.length > 0 ? (
+          <div style={{ marginBottom: "0.65rem" }}>
+            <div style={{ marginBottom: "0.5rem", fontWeight: 600, textAlign: "left", fontSize: "0.98rem" }}>
+              Upload In Progress
+            </div>
+            <div
+              style={{
+                padding: "0.75rem 0.85rem",
+                border: "1px solid rgba(107,92,255,0.18)",
+                borderRadius: "10px",
+                background: "rgba(107,92,255,0.08)",
+                textAlign: "left",
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: "0.35rem", fontSize: "0.92rem" }}>
+                Uploading and processing {activeUploads.length} file{activeUploads.length === 1 ? "" : "s"}...
+              </div>
+              <div style={{ color: "var(--muted)", fontSize: "0.85rem", marginBottom: "0.55rem", lineHeight: 1.35 }}>
+                These continue in the background if you leave this page.
+              </div>
+              <div style={{ display: "grid", gap: "0.5rem" }}>
+                {activeUploads.map((entry) => (
+                  <div
+                    key={entry.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "0.65rem",
+                      alignItems: "center",
+                      padding: "0.55rem 0.65rem",
+                      borderRadius: "8px",
+                      background: "rgba(10,11,16,0.26)",
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, overflowWrap: "anywhere", fontSize: "0.9rem" }}>
+                        {entry.fileName}
+                      </div>
+                      <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+                        Type: {formatStatus(entry.documentType)}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: "0.8rem", color: "#cdbfff", whiteSpace: "nowrap" }}>
+                      {entry.status === "queued"
+                        ? "Queued..."
+                        : entry.status === "uploading"
+                          ? "Uploading..."
+                          : "Processing..."}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : docs.length > 0 ? (
+          <div style={{ marginBottom: "0.65rem" }}>
+            <div style={{ marginBottom: "0.5rem", fontWeight: 600, textAlign: "left", fontSize: "0.98rem" }}>
+              Uploaded Documents
+            </div>
+
+            {docs.map((doc) => (
+              <div
+                key={doc.id}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "0.65rem",
+                  padding: "0.65rem 0.85rem",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "10px",
+                  marginBottom: "0.55rem",
+                  background: "rgba(10,11,16,0.35)",
+                }}
+              >
+                <div style={{ textAlign: "left" }}>
+                  <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{doc.title}</div>
+                  <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+                    {doc.original_filename} • {formatFileSize(doc.size_bytes)} • {formatStatus(doc.status)}
+                  </div>
+                  <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+                    Type: {formatStatus(doc.document_type)} • Chunks: {doc.chunk_count}
+                  </div>
+                  {doc.processing_error && (
+                    <div style={{ fontSize: "0.8rem", color: "#ffb4b4", marginTop: "0.25rem" }}>
+                      Error: {doc.processing_error}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => void removeDoc(doc.id)}
+                  disabled={!canManageDocuments || deletingId === doc.id}
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    background: "transparent",
+                    color: "var(--muted)",
+                    borderRadius: "8px",
+                    padding: "0.45rem 0.75rem",
+                    cursor: canManageDocuments ? "pointer" : "not-allowed",
+                    flexShrink: 0,
+                    opacity: canManageDocuments ? 1 : 0.6,
+                    fontSize: "0.88rem",
+                  }}
+                >
+                  {deletingId === doc.id ? "Deleting..." : "Delete"}
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div
+            style={{
+              color: "var(--muted)",
+              marginBottom: "0.35rem",
+              padding: "0.75rem 0.85rem",
+              borderRadius: "10px",
+              background: "rgba(255,255,255,0.03)",
+              textAlign: "left",
+              fontSize: "0.92rem",
+              lineHeight: 1.45,
+            }}
+          >
+            No documents yet. Upload PDF, TXT, or MD to add training material to the knowledge base.
+          </div>
+        )}
+      </div>
+
+      <div className={uploadStyles.footer}>
         <button
+          type="button"
           onClick={() => nav(backPath)}
           style={{
-            flex: 1,
-            minWidth: "160px",
-            padding: "0.75rem",
-            backgroundColor: "#3b3b3b",
+            width: "100%",
+            padding: "0.7rem",
+            backgroundColor: isAdmin ? "#3b3b3b" : "#6b5cff",
             color: "white",
             border: "none",
             borderRadius: "8px",
             cursor: "pointer",
+            fontSize: "0.92rem",
           }}
         >
           {isAdmin ? "Back to Admin Controls" : "Back to Chat"}
-        </button>
-
-        <button
-          onClick={() => nav("/chat")}
-          style={{
-            flex: 1,
-            minWidth: "160px",
-            padding: "0.75rem",
-            backgroundColor: "#6b5cff",
-            color: "white",
-            border: "none",
-            borderRadius: "8px",
-            cursor: "pointer",
-          }}
-        >
-          Go to Chat
         </button>
       </div>
     </AuthCard>

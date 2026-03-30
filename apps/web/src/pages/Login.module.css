@@ -9,45 +9,67 @@
   font-size: 1rem;
 }
 
-.field::placeholder{
-  color: var(--muted);
+/* Chrome / Edge / Safari: keep dark fields when the browser autofills (avoids white wash + invisible toggle icon) */
+.field:-webkit-autofill,
+.field:-webkit-autofill:hover,
+.field:-webkit-autofill:focus,
+.field:-webkit-autofill:active{
+  -webkit-text-fill-color: var(--text);
+  caret-color: var(--text);
+  border: 1px solid rgba(255,255,255,0.2);
+  box-shadow: 0 0 0 1000px rgba(10, 11, 16, 0.92) inset;
+  transition: background-color 99999s ease-out 0s;
 }
 
-.passwordRow{
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
+.field:autofill{
+  box-shadow: 0 0 0 1000px rgba(10, 11, 16, 0.92) inset;
+  color: var(--text);
+}
+
+.field::placeholder{
+  color: var(--muted);
 }
 
 .passwordWrap{
   position: relative;
   width: 100%;
-  flex: 1 1 auto;
 }
 
+/* Room for the in-field visibility control (inset toggle — not edge-to-edge with the field) */
 .passwordWrap .field{
-  padding-right: 14px;
+  padding-right: 46px;
+  box-sizing: border-box;
 }
 
 .passwordToggle{
-  position: static;
-  min-width: var(--touch-min, 44px);
-  min-height: var(--touch-min, 44px);
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  border: 1px solid rgba(255,255,255,0.15);
-  background: rgba(10,11,16,0.45);
-  color: var(--muted);
+  border: none;
+  /* Opaque enough to stay visible on top of autofill’s light background */
+  background: rgba(10, 11, 16, 0.88);
+  color: rgba(255, 255, 255, 0.72);
   cursor: pointer;
-  border-radius: 8px;
-  display: flex;
+  border-radius: 6px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
 .passwordToggle:hover{
   color: var(--text);
-  background: rgba(255,255,255,0.06);
+  background: rgba(30, 32, 42, 0.95);
+}
+
+.passwordToggle:focus-visible{
+  outline: 2px solid var(--accent, #6b5cff);
+  outline-offset: 2px;
 }
 
 .form{
@@ -55,6 +77,14 @@
   flex-direction:column;
   gap: 14px;
   margin-top: 6px;
+}
+
+.fieldHint{
+  font-size: 0.82rem;
+  color: var(--muted, rgba(255,255,255,0.55));
+  margin: -8px 0 0;
+  line-height: 1.4;
+  text-align: left;
 }
 
 .roleLabel{

@@ -15,3 +15,9 @@ coverage/
 **/coverage/
 
 .DS_Store
+
+# API runtime logs
+apps/api/logs/
+
+# Vite dependency pre-bundle cache (dev)
+apps/web/.vite/

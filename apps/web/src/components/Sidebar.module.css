@@ -49,9 +49,46 @@
   padding: 4px 2px 8px;
 }
 .brand{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brandText{
   font-weight: 800;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.03em;
   font-size: 20px;
+  line-height: 1.15;
+}
+
+.brandAccent{
+  width: 4px;
+  height: 1.35rem;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #a5b4fc, #6366f1);
+  flex-shrink: 0;
+}
+
+.brandButton{
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 4px 8px;
+  margin: -2px -8px;
+  border-radius: 10px;
+  font: inherit;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.brandButton:hover{
+  background: rgba(255,255,255,0.06);
+}
+
+.brandButton:focus-visible{
+  outline: 2px solid var(--accent, #6b5cff);
+  outline-offset: 2px;
 }
 
 .iconBtn{
@@ -69,6 +106,99 @@
 }
 @media (min-width: 900px){
   .iconBtn{ display: none; }
+}
+
+.collapseDesktopBtn{
+  display: none;
+}
+
+@media (min-width: 900px){
+  .collapseDesktopBtn{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(10,11,16,0.35);
+    color: var(--text);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .collapseDesktopBtn:hover{
+    background: rgba(255,255,255,0.08);
+  }
+}
+
+.sidebar.sidebarCollapsed{
+  width: 68px;
+  padding: 14px 8px;
+  align-items: stretch;
+}
+
+.sidebarCollapsed .brandRow{
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.sidebarCollapsed .brand{
+  display: none;
+}
+
+.sidebarCollapsed .item{
+  justify-content: center;
+  padding: 10px 6px;
+}
+
+.sidebarCollapsed .itemLabel{
+  display: none;
+}
+
+.sidebarCollapsed .sectionTitle{
+  display: none;
+}
+
+.sidebarCollapsed .historySection{
+  display: none;
+}
+
+.sidebarCollapsed .hideWhenCollapsed{
+  display: none;
+}
+
+.sidebarCollapsed .footer .item{
+  justify-content: center;
+}
+
+@media (max-width: 899px){
+  .sidebar.sidebarCollapsed{
+    width: 260px;
+    padding: 18px 16px;
+  }
+  .sidebarCollapsed .brandRow{
+    flex-direction: row;
+    align-items: center;
+  }
+  .sidebarCollapsed .brand{
+    display: block;
+  }
+  .sidebarCollapsed .item{
+    justify-content: flex-start;
+    padding: 12px 14px;
+  }
+  .sidebarCollapsed .itemLabel,
+  .sidebarCollapsed .sectionTitle{
+    display: block;
+  }
+  .sidebarCollapsed .historySection{
+    display: flex;
+  }
+  .sidebarCollapsed .hideWhenCollapsed{
+    display: block;
+  }
 }
 
 .section{ display:flex; flex-direction:column; gap: 8px; }
@@ -101,6 +231,40 @@
   font-size: 0.85rem;
 }
 
+.searchModalDialog{
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.searchModalList{
+  flex: 1;
+  min-height: 140px;
+  max-height: min(62vh, 560px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 -0.25rem;
+  padding: 0 0.25rem;
+}
+
+.searchModalRow{
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(10,11,16,0.35);
+  color: var(--text);
+  font-size: 0.96rem;
+  cursor: pointer;
+}
+
+.searchModalRow:hover{
+  background: rgba(255,255,255,0.07);
+}
+
 .item{
   width: 100%;
   min-height: var(--touch-min, 44px);
@@ -112,10 +276,36 @@
   font-size: 1rem;
   border-radius: 10px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .item:hover{
   background: rgba(255,255,255,0.05);
   border-color: rgba(255,255,255,0.08);
+}
+
+.itemIcon{
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: var(--muted);
+}
+
+.item:hover .itemIcon{
+  color: var(--text);
+}
+
+.itemIcon svg{
+  display: block;
+}
+
+.itemLabel{
+  flex: 1;
+  min-width: 0;
 }
 
 .divider{
@@ -145,8 +335,28 @@
   font-size: 1rem;
   border-radius: 10px;
   cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
-.historyItem:hover{ background: rgba(10,11,16,0.32); }
+
+@media (prefers-reduced-motion: reduce){
+  .historyItem{ transition: none; }
+}
+
+/* Inactive chats: hover row (e.g. ⋮ area) or title — does not override .historyRowActive */
+.historyRow:not(.historyRowActive):hover .historyItem{
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.14);
+}
+
+.historyRow:not(.historyRowActive) .historyItem:hover{
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.18);
+}
+
+.historyItem:focus-visible{
+  outline: 2px solid var(--accent, #6b5cff);
+  outline-offset: 2px;
+}
 
 .historyMenuWrap{
   position: relative;
@@ -218,22 +428,50 @@
 }
 .footerItem{
   width: 100%;
-  min-height: var(--touch-min, 44px);
-  padding: 12px 14px;
-  text-align: left;
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--text);
-  font-size: 1rem;
-  border-radius: 10px;
-  cursor: pointer;
 }
-.footerItem:hover{ background: rgba(255,255,255,0.05); }
+.footerItem:hover{
+  background: rgba(255,255,255,0.05);
+}
+
+.historySection{
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 900px){
+  .sidebar:not(.sidebarCollapsed) .historySection{
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+}
 
 .historyRow{
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.historyRowActive .historyItem{
+  background: rgba(107, 92, 255, 0.12);
+  border-color: rgba(129, 140, 248, 0.32);
+  box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.12);
+}
+
+.historyRowActive:hover .historyItem{
+  background: rgba(107, 92, 255, 0.2);
+  border-color: rgba(165, 180, 252, 0.45);
+  box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.22);
+}
+
+.historyRowActive .historyMenuBtn{
+  border-color: rgba(129, 140, 248, 0.22);
+}
+
+.historyRowActive:hover .historyMenuBtn{
+  border-color: rgba(165, 180, 252, 0.35);
+  background: rgba(107, 92, 255, 0.15);
 }
 
 .searchResultSection{
@@ -267,6 +505,12 @@
   background: rgba(18, 20, 30, 0.98);
   border: 1px solid rgba(255,255,255,0.12);
   box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+
+/* Wider/taller than default .renameModal — must follow .renameModal so it wins the cascade */
+.renameModal.searchModalDialog{
+  max-width: min(44rem, 100vw - 2rem);
+  max-height: min(92vh, 780px);
 }
 
 .renameTitle{
