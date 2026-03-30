@@ -2,10 +2,14 @@
 
 Mazer is a local/offline AI assistant built with React, Node.js, MongoDB, ChromaDB, and Ollama.
 
-This repo currently supports two practical development run modes:
+This README is intentionally short:
 
-1. Docker for infrastructure plus API, with the web app running locally.
-2. Docker for infrastructure only, with both API and web running locally.
+- Testing setup: fastest ways to run the repo locally
+- Production-style setup: closest deployment path to the system design target
+- Validation
+- Teardown
+
+For end-to-end user-flow testing, use [HANDOFF_GUIDE.md](/Users/shivaganeshnagamandla/GitHub_Projects/Mazer_SD_Project/HANDOFF_GUIDE.md).
 
 ## Prerequisites
 
@@ -13,16 +17,20 @@ This repo currently supports two practical development run modes:
 - npm `10+`
 - Docker Desktop, or Docker Engine with Compose
 
-## Services and Ports
+## Core Endpoints
 
-- Web dev server: `http://localhost:5173`
+- Web: `http://localhost:5173`
 - API: `http://localhost:4000`
 - API health: `http://localhost:4000/api/health`
 - MongoDB: `mongodb://localhost:27017`
 - Ollama: `http://localhost:11434`
 - Chroma: `http://localhost:8000`
 
-## First-Time Setup
+## Testing Setup
+
+### Option A: Docker API + Local Web
+
+Use this for the quickest local test run.
 
 From the repo root:
 
@@ -30,33 +38,106 @@ From the repo root:
 docker compose up --build -d
 docker compose exec ollama ollama pull llama3.2:3b
 docker compose exec ollama ollama pull nomic-embed-text
-```
-
-Why both models matter:
-
-- `llama3.2:3b` is the default chat model.
-- `nomic-embed-text` is the default embedding model for RAG.
-
-Then install web dependencies:
-
-```bash
 cd apps/web
 npm install
+npm run dev
 ```
 
-If you plan to run the API locally instead of in Docker, also install API dependencies:
+Notes:
+
+- API runs in Docker.
+- Web runs locally.
+- Vite proxies `/api` to `http://localhost:4000`.
+
+### Option B: Docker Infra + Local API + Local Web
+
+Use this if you need to debug the API directly.
+
+Start infra:
+
+```bash
+docker compose up -d mongo ollama chroma
+```
+
+Start the API:
 
 ```bash
 cd apps/api
 npm install
 cp .env.example .env
+npm run dev
 ```
+
+Start the web app in a second terminal:
+
+```bash
+cd apps/web
+npm install
+npm run dev
+```
+
+## Production-Style Setup
+
+This is the closest setup to the target architecture in `docs/SYSTEM_DESIGN_PLAN.md`:
+
+- single Linux host
+- offline / air-gapped deployment
+- local MongoDB + ChromaDB + Ollama
+- NVIDIA GPU-backed Ollama
+
+The repo includes `docker-compose.gpu.yml` for NVIDIA Docker hosts.
+
+### Start the backend stack
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build -d
+```
+
+Optional: pin Ollama to a specific NVIDIA GPU:
+
+```bash
+OLLAMA_GPU_DEVICE=0 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build -d
+```
+
+Pull the required models:
+
+```bash
+docker compose exec ollama ollama pull llama3.2:3b
+docker compose exec ollama ollama pull nomic-embed-text
+```
+
+Important:
+
+- The current repo defaults to `llama3.2:3b` for easier testing.
+- The system design assumes an RTX-3090-class deployment sized for larger 4-bit quantized models.
+- If you want production to match the design more closely, validate and set `OLLAMA_MODEL` for the target GPU before rollout.
+
+### Build and serve the web app
+
+```bash
+cd apps/web
+npm install
+npm run build
+```
+
+Serve the built assets from `apps/web/dist` using the local web server or reverse proxy used in the deployment environment.
+
+### Recommended production-style API env
+
+Set these in the API environment for production-style deployment:
+
+- `MONGO_URL`
+- `JWT_SECRET`
+- `OLLAMA_HOST`
+- `CHROMA_HOST`
+- `LOG_DIR=/mnt/hdd/logs`
+- `LOG_LEVEL=info`
 
 ## Admin Bootstrap
 
-Admin accounts are intentionally not available through the public registration flow. Provision the first admin with environment variables and the API bootstrap command.
+Admin accounts are not created through public registration.
 
-Example:
+Create the first admin:
 
 ```bash
 cd apps/api
@@ -69,113 +150,35 @@ npm run bootstrap:admin
 
 Behavior:
 
-- Creates the admin account if it does not exist
-- Updates the password and enforces `role=admin` if the same admin identity already exists
-- Fails if the username/email conflict with a different account
+- creates the admin if it does not exist
+- updates the same admin identity if rerun
+- fails if username/email conflict with a different user
 
-After bootstrap, sign in through `http://localhost:5173/login/admin`.
+Admin login page:
 
-## Run Mode A: Docker API + Local Web
+- `http://localhost:5173/login/admin`
 
-This is the fastest way to get the full app up for development if you only want the frontend local.
+## Validation
 
-Start the stack:
-
-```bash
-docker compose up --build -d
-```
-
-Start the web app:
-
-```bash
-cd apps/web
-npm run dev
-```
-
-Open:
-
-- Web: `http://localhost:5173`
-- API health: `http://localhost:4000/api/health`
-
-Notes:
-
-- In this mode, the API runs inside Docker.
-- The Vite dev server proxies `/api` to `http://localhost:4000`.
-
-## Run Mode B: Docker Infra + Local API + Local Web
-
-Use this if you want to debug the API directly on your machine.
-
-Start only infrastructure services:
-
-```bash
-docker compose up -d mongo ollama chroma
-```
-
-Create local API env file if you have not already:
-
-```bash
-cd apps/api
-cp .env.example .env
-```
-
-Start the API locally:
-
-```bash
-cd apps/api
-npm install
-npm run dev
-```
-
-In a second terminal, start the web app:
-
-```bash
-cd apps/web
-npm install
-npm run dev
-```
-
-## Required API Environment Variables
-
-The local API requires at least:
-
-- `MONGO_URL`
-- `JWT_SECRET`
-
-Optional first-run admin bootstrap variables:
-
-- `ADMIN_BOOTSTRAP_USERNAME`
-- `ADMIN_BOOTSTRAP_EMAIL`
-- `ADMIN_BOOTSTRAP_PASSWORD`
-
-The included `apps/api/.env.example` also defines recommended local defaults for:
-
-- `PORT`
-- `OLLAMA_HOST`
-- `OLLAMA_MODEL`
-- `OLLAMA_EMBED_MODEL`
-- `CHROMA_HOST`
-- `CHROMA_COLLECTION`
-- `CHROMA_TENANT`
-- `CHROMA_DATABASE`
-- `RETENTION_SWEEP_INTERVAL_MS`
-- `ADMIN_WIPE_CONFIRMATION_CODE`
-
-## Ground-Up Validation
-
-After startup, verify the stack in this order:
-
-1. Health check:
+### Basic startup validation
 
 ```bash
 curl http://localhost:4000/api/health
 ```
 
-2. Web app loads:
+Then open `http://localhost:5173`.
 
-- Open `http://localhost:5173`
+### GPU validation
 
-3. Optional repo checks:
+If using NVIDIA GPU acceleration for Ollama:
+
+```bash
+docker compose exec ollama ollama ps
+```
+
+### Repo checks
+
+API:
 
 ```bash
 cd apps/api
@@ -184,6 +187,8 @@ npm run test:integration
 npm run test:coverage
 npm run build
 ```
+
+Web:
 
 ```bash
 cd apps/web
@@ -194,77 +199,35 @@ npm run test:coverage
 npm run build
 ```
 
-## RAG Notes
+### User-flow validation
 
-RAG depends on all three backend dependencies being available:
+Run the full checklist in [HANDOFF_GUIDE.md](/Users/shivaganeshnagamandla/GitHub_Projects/Mazer_SD_Project/HANDOFF_GUIDE.md).
 
-- MongoDB for document metadata and app data
-- Ollama for embeddings and chat
-- Chroma for vector retrieval
+## Notes
 
-If `nomic-embed-text` is not pulled, document upload and retrieval will not work correctly.
-
-## Admin Wipe Notes
-
-The destructive admin wipe flow requires a confirmation code.
-
-- Default confirmation code: `MAZER_CONFIRM_WIPE`
-- Override with `ADMIN_WIPE_CONFIRMATION_CODE`
-
-Model reset behavior:
-
-- `wipe_model_weights=true` removes pulled models through the Ollama API
-- filesystem cache/model directory cleanup only happens if `OLLAMA_MODEL_STORAGE_PATHS` and/or `OLLAMA_CACHE_PATHS` are configured
-
-## Logs and Useful Commands
-
-Inspect running services:
-
-```bash
-docker compose ps
-```
-
-Tail logs:
-
-```bash
-docker compose logs -f api
-docker compose logs -f ollama
-docker compose logs -f mongo
-docker compose logs -f chroma
-```
-
-Rebuild containers:
-
-```bash
-docker compose up --build -d
-```
+- RAG requires MongoDB, Ollama, and Chroma to all be available.
+- `nomic-embed-text` must be pulled or document ingestion/retrieval will not work correctly.
+- `docker-compose.gpu.yml` is for NVIDIA Docker hosts. It is not a universal AMD/Intel/Apple GPU configuration.
+- The repo’s default compose file is still developer-oriented. Production-style hardening beyond this baseline is not fully encoded in the repo.
 
 ## Teardown
 
-Stop containers, keep data volumes:
+Stop containers, keep data:
 
 ```bash
 docker compose down
 ```
 
-Stop containers and remove volumes for a clean reset:
+Stop containers and delete local Docker volumes:
 
 ```bash
 docker compose down -v
 ```
 
-What `down -v` deletes:
+`down -v` deletes:
 
-- Mongo database data
-- Chroma vector data
-- Ollama stored model data in the Docker volume
+- MongoDB data volume
+- ChromaDB data volume
+- Ollama model/data volume
 
-If you are also running local dev servers, stop them with `Ctrl+C`.
-
-## Current README Status
-
-This README now matches the current codebase better than the previous version. The previous README was outdated in three important ways:
-
-- it used the wrong health endpoint
-- it referenced a missing `.env.example`
-- it pulled the wrong Ollama chat model and omitted the embedding model
+If local dev servers are running, stop them with `Ctrl+C`.

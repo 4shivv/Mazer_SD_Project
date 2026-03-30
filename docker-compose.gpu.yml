@@ -1,0 +1,7 @@
+services:
+  ollama:
+    # Requires an NVIDIA-capable Docker host with NVIDIA Container Toolkit installed.
+    gpus: all
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${OLLAMA_GPU_DEVICE:-all}
+      NVIDIA_DRIVER_CAPABILITIES: ${OLLAMA_NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
