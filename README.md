@@ -52,6 +52,29 @@ npm install
 cp .env.example .env
 ```
 
+## Admin Bootstrap
+
+Admin accounts are intentionally not available through the public registration flow. Provision the first admin with environment variables and the API bootstrap command.
+
+Example:
+
+```bash
+cd apps/api
+cp .env.example .env
+ADMIN_BOOTSTRAP_USERNAME=admin \
+ADMIN_BOOTSTRAP_EMAIL=admin@example.com \
+ADMIN_BOOTSTRAP_PASSWORD=change-this-before-first-run \
+npm run bootstrap:admin
+```
+
+Behavior:
+
+- Creates the admin account if it does not exist
+- Updates the password and enforces `role=admin` if the same admin identity already exists
+- Fails if the username/email conflict with a different account
+
+After bootstrap, sign in through `http://localhost:5173/login/admin`.
+
 ## Run Mode A: Docker API + Local Web
 
 This is the fastest way to get the full app up for development if you only want the frontend local.
@@ -118,6 +141,12 @@ The local API requires at least:
 
 - `MONGO_URL`
 - `JWT_SECRET`
+
+Optional first-run admin bootstrap variables:
+
+- `ADMIN_BOOTSTRAP_USERNAME`
+- `ADMIN_BOOTSTRAP_EMAIL`
+- `ADMIN_BOOTSTRAP_PASSWORD`
 
 The included `apps/api/.env.example` also defines recommended local defaults for:
 
