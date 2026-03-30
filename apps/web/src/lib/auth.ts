@@ -40,7 +40,7 @@ function buildIdentityPayload(identifier: string) {
   return { username: trimmed };
 }
 
-export function login(identifier: string, password: string) {
+export function login(identifier: string, password: string, expectedRole?: Role) {
   return api<MeResponse>("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({
@@ -48,6 +48,7 @@ export function login(identifier: string, password: string) {
         ? { email: identifier.trim() }
         : { identifier: identifier.trim() }),
       password,
+      ...(expectedRole ? { expectedRole } : {}),
     }),
   });
 }

@@ -1,7 +1,9 @@
 import {
   createConversation,
+  deleteConversation,
   getConversationMessages,
   listConversations,
+  updateConversationTitle,
   type ConversationSummary,
 } from "./api";
 
@@ -49,10 +51,10 @@ export async function saveMessages(_sessionId: string, _messages: ChatMsg[]) {
   return;
 }
 
-export async function renameSession(_sessionId: string, _title: string) {
-  return;
+export async function renameSession(sessionId: string, title: string) {
+  await updateConversationTitle(sessionId, title);
 }
 
-export async function deleteSession(_sessionId: string) {
-  return;
+export async function deleteSession(sessionId: string) {
+  await deleteConversation(sessionId);
 }

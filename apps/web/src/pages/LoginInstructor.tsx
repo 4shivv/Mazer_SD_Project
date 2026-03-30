@@ -25,12 +25,14 @@ export default function LoginInstructor() {
 
     try {
       setLoading(true);
-      const res = await Auth.login(identifier.trim(), password);
+      const res = await Auth.login(identifier.trim(), password, "instructor");
       setUser(res.user);
       nav("/chat", { replace: true });
     } catch (err: any) {
       if (err?.message === "instructor_pending_approval") {
         setError("Instructor account is pending admin approval.");
+      } else if (err?.message === "login_role_mismatch") {
+        setError("This account is not an instructor account. Please use the correct login page.");
       } else {
         setError(err?.message || "Login failed.");
       }
@@ -80,6 +82,12 @@ export default function LoginInstructor() {
           Don&apos;t have an account?{" "}
           <button type="button" className={styles.registerLink} onClick={() => nav("/register")}>
             Create one
+          </button>
+        </p>
+        <p className={styles.registerRow}>
+          Need a different login?{" "}
+          <button type="button" className={styles.registerLink} onClick={() => nav("/")}>
+            Back to role selection
           </button>
         </p>
       </form>

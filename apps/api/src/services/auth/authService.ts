@@ -22,6 +22,7 @@ type LoginInput = {
   identifier?: string;
   email?: string;
   password: string;
+  expectedRole?: Role;
 };
 
 type PublicUser = {
@@ -147,6 +148,14 @@ export async function loginUser(input: LoginInput) {
       403,
       "Instructor account pending admin approval",
       "instructor_pending_approval"
+    );
+  }
+
+  if (input.expectedRole && userDoc.role !== input.expectedRole) {
+    throw new AuthServiceError(
+      403,
+      `This account must sign in via the ${userDoc.role} login page.`,
+      "login_role_mismatch"
     );
   }
 

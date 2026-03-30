@@ -19,12 +19,14 @@ export default function LoginTrainee() {
     setError("");
     setLoading(true);
     try {
-      const res = await Auth.login(identifier, password);
+      const res = await Auth.login(identifier, password, "trainee");
       setUser(res.user);
       nav("/chat");
     } catch (err: any) {
       if (err?.message === "instructor_pending_approval") {
         setError("Instructor account is pending admin approval.");
+      } else if (err?.message === "login_role_mismatch") {
+        setError("This account is not a trainee account. Please use the correct login page.");
       } else {
         setError(err.message || "Login failed");
       }
@@ -77,6 +79,12 @@ export default function LoginTrainee() {
           Don&apos;t have an account?{" "}
           <button type="button" className={styles.registerLink} onClick={() => nav("/register")}>
             Create one
+          </button>
+        </p>
+        <p className={styles.registerRow}>
+          Need a different login?{" "}
+          <button type="button" className={styles.registerLink} onClick={() => nav("/")}>
+            Back to role selection
           </button>
         </p>
       </form>

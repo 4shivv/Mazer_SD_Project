@@ -6,11 +6,13 @@ import { thermalGate } from "../middleware/thermalGate.js";
 import {
   ChatHistoryServiceError,
   createConversationForUser,
+  deleteConversationForUser,
   getConversationMessagesForUser,
   getConversationPromptContextForUser,
   listConversationsForUser,
   MAX_CONVERSATION_CONTEXT_TOKENS,
   persistChatExchange,
+  renameConversationForUser,
   resolveConversationForChat,
 } from "../services/chat/chatHistoryService.js";
 import {
@@ -49,6 +51,10 @@ const CreateConversationSchema = z.object({
 const ListConversationsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
+});
+
+const UpdateConversationSchema = z.object({
+  title: z.string().trim().min(1).max(160),
 });
 
 const ChatSchema = z.object({
@@ -198,6 +204,46 @@ router.get("/conversations/:id/messages", requireAuth, async (req, res) => {
       return res.status(error.status).json({ error: error.code, message: error.message });
     }
     return res.status(500).json({ error: "conversation_messages_failed" });
+  }
+});
+
+router.patch("/conversations/:id", requireAuth, async (req, res) => {
+  const conversationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  if (!conversationId) return res.status(400).json({ error: "conversation_id_required" });
+
+  const parsed = UpdateConversationSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  try {
+    const updated = await renameConversationForUser({
+      userId: req.user!.id,
+      conversationId,
+      title: parsed.data.title,
+    });
+    return res.json(updated);
+  } catch (error) {
+    if (error instanceof ChatHistoryServiceError) {
+      return res.status(error.status).json({ error: error.code, message: error.message });
+    }
+    return res.status(500).json({ error: "conversation_update_failed" });
+  }
+});
+
+router.delete("/conversations/:id", requireAuth, async (req, res) => {
+  const conversationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  if (!conversationId) return res.status(400).json({ error: "conversation_id_required" });
+
+  try {
+    await deleteConversationForUser({
+      userId: req.user!.id,
+      conversationId,
+    });
+    return res.status(204).send();
+  } catch (error) {
+    if (error instanceof ChatHistoryServiceError) {
+      return res.status(error.status).json({ error: error.code, message: error.message });
+    }
+    return res.status(500).json({ error: "conversation_delete_failed" });
   }
 });
 

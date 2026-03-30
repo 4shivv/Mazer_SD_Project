@@ -30,7 +30,7 @@ describe("Profile", () => {
       <MemoryRouter initialEntries={["/profile"]}>
         <Routes>
           <Route path="/profile" element={<Profile />} />
-          <Route path="/instructor/settings" element={<div>Instructor Settings</div>} />
+          <Route path="/chat" element={<div>Chat</div>} />
         </Routes>
       </MemoryRouter>
     );
@@ -40,7 +40,7 @@ describe("Profile", () => {
     expect(screen.getByText("operator@example.com")).toBeInTheDocument();
     expect(screen.getByText("instructor")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Open Instructor Settings" }));
-    expect(screen.getByText("Instructor Settings")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Back to Chat" }));
+    expect(screen.getByText("Chat")).toBeInTheDocument();
   });
 });

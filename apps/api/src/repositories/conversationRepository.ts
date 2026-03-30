@@ -174,3 +174,27 @@ export async function deleteConversationsByIds(conversationIds: string[]) {
   const result = await Conversation.deleteMany({ _id: { $in: conversationIds } });
   return result.deletedCount ?? 0;
 }
+
+export async function setConversationTitleForUser(args: {
+  conversationId: string;
+  userId: string;
+  title: string;
+}) {
+  return Conversation.updateOne(
+    {
+      _id: args.conversationId,
+      user_id: args.userId,
+    },
+    { $set: { title: args.title } }
+  );
+}
+
+export async function deleteConversationRecordForUser(args: {
+  conversationId: string;
+  userId: string;
+}) {
+  return Conversation.deleteOne({
+    _id: args.conversationId,
+    user_id: args.userId,
+  });
+}

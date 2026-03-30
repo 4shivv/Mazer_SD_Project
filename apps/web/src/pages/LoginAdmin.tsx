@@ -25,7 +25,7 @@ export default function LoginAdmin() {
 
     try {
       setLoading(true);
-      const res = await Auth.login(email.trim(), password);
+      const res = await Auth.login(email.trim(), password, "admin");
       setUser(res.user);
 
       if (res.user.role === "admin") {
@@ -34,7 +34,11 @@ export default function LoginAdmin() {
         nav("/chat", { replace: true });
       }
     } catch (err: any) {
-      setError(err?.message || "Login failed.");
+      if (err?.message === "login_role_mismatch") {
+        setError("This account is not an admin account. Please use the correct login page.");
+      } else {
+        setError(err?.message || "Login failed.");
+      }
     } finally {
       setLoading(false);
     }

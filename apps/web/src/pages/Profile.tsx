@@ -18,15 +18,11 @@ export default function Profile() {
 
   const primaryDestination = user?.role === "admin"
     ? "/admin"
-    : user?.role === "instructor"
-      ? "/instructor/settings"
-      : "/chat";
+    : "/chat";
 
   const primaryLabel = user?.role === "admin"
     ? "Open Admin Controls"
-    : user?.role === "instructor"
-      ? "Open Instructor Settings"
-      : "Back to Chat";
+    : "Back to Chat";
 
   return (
     <AuthCard title="Profile" subtitle="Account overview and role-based navigation">

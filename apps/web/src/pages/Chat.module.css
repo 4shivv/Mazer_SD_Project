@@ -13,7 +13,59 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  flex: 1;
   overflow: hidden;
+}
+
+/* ---------- Draft (no session yet) — ChatGPT-style centered prompt ---------- */
+.draftStage{
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 1.25rem 2rem;
+}
+
+.draftViewport{
+  width: 100%;
+  max-width: 42rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  text-align: center;
+}
+
+.draftHeading{
+  margin: 0;
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.draftSub{
+  margin: 0;
+  max-width: 28rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.draftComposer{
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.draftComposer .inputRow{
+  max-width: none;
+}
+
+.draftComposer .input{
+  min-height: 3rem;
 }
 
 .topbar{

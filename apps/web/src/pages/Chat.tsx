@@ -5,11 +5,7 @@ import { sendChatStream } from "../lib/api";
 import { useAuth } from "../app/AuthProvider";
 import * as Auth from "../lib/auth";
 import type { ChatMsg } from "../lib/chatStore";
-import {
-  createSession,
-  getLatestSession,
-  getMessages,
-} from "../lib/chatStore";
+import { createSession, getMessages } from "../lib/chatStore";
 import styles from "./Chat.module.css";
 
 type Msg = { role: "user" | "assistant"; text: string; ts?: number };
@@ -35,50 +31,34 @@ export default function Chat() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const [messages, setMessages] = useState<Msg[]>([WELCOME_MESSAGE]);
+  const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  /** Skip one fetch for this conversation id while optimistic first reply is streaming (see onSend finally). */
+  const skipLoadForSidRef = useRef<string | null>(null);
 
   const sid = useMemo(() => {
     const q = new URLSearchParams(location.search);
     return q.get("sid");
   }, [location.search]);
 
-  useEffect(() => {
-    if (sid) return;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const latest = await getLatestSession();
-        if (cancelled) return;
-        if (latest) {
-          navigate(`/chat?sid=${encodeURIComponent(latest.id)}`, { replace: true });
-          return;
-        }
-
-        const session = await createSession("New chat");
-        if (!cancelled) {
-          navigate(`/chat?sid=${encodeURIComponent(session.id)}`, { replace: true });
-        }
-      } catch (error: any) {
-        if (!cancelled) {
-          setErrorBanner(error?.message || "Failed to create conversation");
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [sid, navigate]);
+  const isDraft = !sid;
 
   useEffect(() => {
-    if (!sid) return;
+    if (!sid) {
+      setMessages([]);
+      setLoading(false);
+      return;
+    }
+
+    if (sid === skipLoadForSidRef.current) {
+      setErrorBanner(null);
+      return;
+    }
 
     let cancelled = false;
     (async () => {
@@ -131,15 +111,11 @@ export default function Chat() {
     }
   }
 
-  async function newChat() {
-    try {
-      const session = await createSession("New chat");
-      setSidebarOpen(false);
-      setHistoryRefreshKey((current) => current + 1);
-      navigate(`/chat?sid=${encodeURIComponent(session.id)}`);
-    } catch (error: any) {
-      setErrorBanner(error?.message || "Failed to create conversation");
-    }
+  function newChat() {
+    setErrorBanner(null);
+    setSidebarOpen(false);
+    setInput("");
+    navigate("/chat", { replace: true });
   }
 
   async function onSend() {
@@ -148,24 +124,30 @@ export default function Chat() {
 
     setErrorBanner(null);
 
-    let activeConversationId = sid;
-    if (!activeConversationId) {
-      try {
-        const created = await createSession("New chat");
-        activeConversationId = created.id;
-        navigate(`/chat?sid=${encodeURIComponent(created.id)}`, { replace: true });
-      } catch (error: any) {
-        setErrorBanner(error?.message || "Failed to create conversation");
-        return;
-      }
-    }
-    if (!activeConversationId) return;
-
     const userMsg: Msg = { role: "user", text: prompt, ts: Date.now() };
     const assistantTs = Date.now() + 1;
     setMessages((m) => [...m, userMsg, { role: "assistant", text: "", ts: assistantTs }]);
     setInput("");
     setLoading(true);
+
+    let activeConversationId = sid;
+    if (!activeConversationId) {
+      try {
+        const created = await createSession("New chat");
+        activeConversationId = created.id;
+        skipLoadForSidRef.current = created.id;
+        navigate(`/chat?sid=${encodeURIComponent(created.id)}`, { replace: true });
+      } catch (error: any) {
+        skipLoadForSidRef.current = null;
+        setMessages((current) =>
+          current.filter((message) => message.ts !== userMsg.ts && message.ts !== assistantTs)
+        );
+        setLoading(false);
+        setErrorBanner(error?.message || "Failed to create conversation");
+        return;
+      }
+    }
+    if (!activeConversationId) return;
 
     try {
       const res = await sendChatStream(prompt, activeConversationId, {
@@ -200,6 +182,7 @@ export default function Chat() {
       setErrorBanner(e?.message || "Request failed");
     } finally {
       setLoading(false);
+      skipLoadForSidRef.current = null;
     }
   }
 
@@ -297,59 +280,96 @@ export default function Chat() {
           <div className={styles.errorBanner}>{errorBanner}</div>
         )}
 
-        <div className={styles.chatArea}>
-          {messages.map((m, i) => (
-            <div
-              key={i}
-              className={`${styles.bubble} ${
-                m.role === "user" ? styles.user : styles.assistant
-              }`}
-            >
-              <div className={styles.bubbleText}>{m.text}</div>
-
-              {m.role === "assistant" && m.text?.trim() && (
-                <div className={styles.bubbleFooter}>
+        {isDraft ? (
+          <div className={styles.draftStage}>
+            <div className={styles.draftViewport}>
+              <h1 className={styles.draftHeading}>What are you training on?</h1>
+              <p className={styles.draftSub}>
+                Start a conversation — your chat is saved when you send your first message.
+              </p>
+              <div className={styles.draftComposer}>
+                <div className={styles.inputRow}>
+                  <textarea
+                    className={styles.input}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Message Mazer…"
+                    onKeyDown={onComposerKeyDown}
+                    rows={1}
+                    aria-label="Message input"
+                  />
                   <button
-                    className={styles.copyBtn}
-                    onClick={() => void copy(m.text)}
-                    title="Copy response"
-                    aria-label="Copy response"
+                    type="button"
+                    className={styles.send}
+                    onClick={() => void onSend()}
+                    disabled={loading || !input.trim()}
                   >
-                    Copy
+                    {loading ? "Sending…" : "Send"}
                   </button>
                 </div>
-              )}
+              </div>
             </div>
-          ))}
-
-          {loading && (
-            <div className={styles.thinkingBubble}>
-              <span className={styles.thinkingDots}>Thinking…</span>
-            </div>
-          )}
-
-          <div ref={bottomRef} />
-        </div>
-
-        <div className={styles.composer}>
-          <div className={styles.inputRow}>
-            <textarea
-              className={styles.input}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask anything… (Enter to send, Shift+Enter for newline)"
-              onKeyDown={onComposerKeyDown}
-              rows={2}
-            />
-            <button
-              className={styles.send}
-              onClick={() => void onSend()}
-              disabled={loading || !input.trim()}
-            >
-              {loading ? "Sending…" : "Send"}
-            </button>
           </div>
-        </div>
+        ) : (
+          <>
+            <div className={styles.chatArea}>
+              {messages.map((m, i) => (
+                <div
+                  key={i}
+                  className={`${styles.bubble} ${
+                    m.role === "user" ? styles.user : styles.assistant
+                  }`}
+                >
+                  <div className={styles.bubbleText}>{m.text}</div>
+
+                  {m.role === "assistant" && m.text?.trim() && (
+                    <div className={styles.bubbleFooter}>
+                      <button
+                        type="button"
+                        className={styles.copyBtn}
+                        onClick={() => void copy(m.text)}
+                        title="Copy response"
+                        aria-label="Copy response"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {loading && (
+                <div className={styles.thinkingBubble}>
+                  <span className={styles.thinkingDots}>Thinking…</span>
+                </div>
+              )}
+
+              <div ref={bottomRef} />
+            </div>
+
+            <div className={styles.composer}>
+              <div className={styles.inputRow}>
+                <textarea
+                  className={styles.input}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Message Mazer… (Enter to send, Shift+Enter for newline)"
+                  onKeyDown={onComposerKeyDown}
+                  rows={2}
+                  aria-label="Message input"
+                />
+                <button
+                  type="button"
+                  className={styles.send}
+                  onClick={() => void onSend()}
+                  disabled={loading || !input.trim()}
+                >
+                  {loading ? "Sending…" : "Send"}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

@@ -1,12 +1,18 @@
 import mongoose from "mongoose";
 import {
   createConversationRecord,
+  deleteConversationRecordForUser,
   findConversationByIdForUser,
   listConversationsByUser,
+  setConversationTitleForUser,
   touchConversationActivity,
   updateConversationTitleOnFirstMessage,
 } from "../../repositories/conversationRepository.js";
-import { createMessageRecords, listMessagesByConversationId } from "../../repositories/messageRepository.js";
+import {
+  createMessageRecords,
+  deleteMessagesByConversationIds,
+  listMessagesByConversationId,
+} from "../../repositories/messageRepository.js";
 import { resolveSelfDestructDateForAnchor } from "../admin/retentionAdminService.js";
 
 export class ChatHistoryServiceError extends Error {
@@ -126,6 +132,57 @@ export async function createConversationForUser(args: {
     title: String(createdDoc.title),
     created_at: createdDoc.created_at as Date,
   };
+}
+
+export async function renameConversationForUser(args: {
+  userId: string;
+  conversationId: string;
+  title: string;
+}): Promise<{ conversation_id: string; title: string }> {
+  assertValidConversationId(args.conversationId);
+
+  const conversation = await findConversationByIdForUser({
+    conversationId: args.conversationId,
+    userId: args.userId,
+  });
+  if (!conversation) {
+    throw new ChatHistoryServiceError(404, "Conversation not found", "conversation_not_found");
+  }
+  assertConversationNotExpired(conversation);
+
+  const title = normalizeTitle(args.title);
+  const result = await setConversationTitleForUser({
+    conversationId: args.conversationId,
+    userId: args.userId,
+    title,
+  });
+  if ((result.matchedCount ?? 0) === 0) {
+    throw new ChatHistoryServiceError(404, "Conversation not found", "conversation_not_found");
+  }
+
+  return { conversation_id: args.conversationId, title };
+}
+
+export async function deleteConversationForUser(args: { userId: string; conversationId: string }): Promise<void> {
+  assertValidConversationId(args.conversationId);
+
+  const conversation = await findConversationByIdForUser({
+    conversationId: args.conversationId,
+    userId: args.userId,
+  });
+  if (!conversation) {
+    throw new ChatHistoryServiceError(404, "Conversation not found", "conversation_not_found");
+  }
+  assertConversationNotExpired(conversation);
+
+  await deleteMessagesByConversationIds([args.conversationId]);
+  const del = await deleteConversationRecordForUser({
+    conversationId: args.conversationId,
+    userId: args.userId,
+  });
+  if ((del.deletedCount ?? 0) === 0) {
+    throw new ChatHistoryServiceError(404, "Conversation not found", "conversation_not_found");
+  }
 }
 
 export async function listConversationsForUser(args: {

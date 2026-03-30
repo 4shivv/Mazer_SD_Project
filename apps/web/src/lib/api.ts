@@ -224,6 +224,22 @@ export async function getConversationMessages(conversationId: string) {
   return api<ConversationMessagesResponse>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`);
 }
 
+export async function updateConversationTitle(conversationId: string, title: string) {
+  return api<{ conversation_id: string; title: string }>(
+    `/api/conversations/${encodeURIComponent(conversationId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    }
+  );
+}
+
+export async function deleteConversation(conversationId: string) {
+  await api<null>(`/api/conversations/${encodeURIComponent(conversationId)}`, {
+    method: "DELETE",
+  });
+}
+
 export async function sendChat(prompt: string, conversationId: string) {
   return api<ChatResponse>("/api/chat", {
     method: "POST",
