@@ -2,6 +2,7 @@ services:
   api:
     build:
       context: ./apps/api
+      target: dev
     command: npm run dev
     environment:
       - PORT=4000
@@ -20,7 +21,7 @@ services:
     volumes:
       - ./apps/api:/usr/src/app
       # keep node_modules inside the container so host mount doesn't wipe it
-      - /usr/src/app/node_modules
+      - api_node_modules:/usr/src/app/node_modules
     working_dir: /usr/src/app
     depends_on:
       - ollama
@@ -52,6 +53,7 @@ services:
       - chroma_data:/chroma
 
 volumes:
+  api_node_modules:
   ollama_data:
   mongo_data:
   chroma_data:

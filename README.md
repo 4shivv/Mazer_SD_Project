@@ -51,6 +51,24 @@ Notes:
 - Web runs locally.
 - Vite proxies `/api` to `http://localhost:4000`.
 - This is the recommended local test path on macOS, Windows, or Linux.
+- If `docker compose logs api` shows `sh: 1: tsx: not found`, the `api` service is not running with a valid dev dependency volume. This repo now uses a named `api_node_modules` volume so the `api` service gets a stable container-owned dependency tree. Recreate the API service after pulling the latest compose file:
+
+```bash
+docker compose rm -sf api
+docker compose up --build -d api
+docker compose logs api --tail=50
+```
+
+- If `tsx` is still missing after the rebuild, remove the API service and its named dependency volume, then rebuild:
+
+```bash
+docker compose rm -sf api
+docker volume rm mazer_sd_project_api_node_modules
+docker compose up --build -d api
+docker compose logs api --tail=50
+```
+
+- Pull the exact Ollama model tag from this README and `docker-compose.yml`. For local Docker setup that tag is `llama3:8b-instruct-q4_K_M`; `llama3:8b-q4_K_M` will fail because it is not the configured model name in this repo.
 
 ### Option B: Docker Infra + Local API + Local Web
 
