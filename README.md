@@ -45,6 +45,18 @@ npm install
 npm run dev
 ```
 
+Create the first admin in a second terminal:
+
+```bash
+cd apps/api
+npm install
+cp .env.example .env
+ADMIN_BOOTSTRAP_USERNAME=admin \
+ADMIN_BOOTSTRAP_EMAIL=admin@example.com \
+ADMIN_BOOTSTRAP_PASSWORD=change-this-before-first-run \
+npm run bootstrap:admin
+```
+
 Notes:
 
 - API runs in Docker.
@@ -104,12 +116,7 @@ Notes:
 
 ## Production-Style Setup
 
-This is the closest setup to the target architecture in `docs/SYSTEM_DESIGN_PLAN.md`:
-
-- single Linux host
-- offline / air-gapped deployment
-- local MongoDB + ChromaDB + Ollama
-- NVIDIA GPU-backed Ollama
+This is the closest setup to the target architecture in `docs/SYSTEM_DESIGN_PLAN.md`: single Linux host, offline deployment, local MongoDB + ChromaDB + Ollama, optional NVIDIA GPU overlay.
 
 Use [docker-compose.prod.yml](/Users/shivaganeshnagamandla/GitHub_Projects/Mazer_SD_Project/docker-compose.prod.yml) for the production-style stack.
 
@@ -191,8 +198,6 @@ Set these in the API environment for production-style deployment:
 
 Admin accounts are not created through public registration.
 
-Create the first admin:
-
 ```bash
 cd apps/api
 cp .env.example .env
@@ -202,15 +207,7 @@ ADMIN_BOOTSTRAP_PASSWORD=change-this-before-first-run \
 npm run bootstrap:admin
 ```
 
-Behavior:
-
-- creates the admin if it does not exist
-- updates the same admin identity if rerun
-- fails if username/email conflict with a different user
-
-Admin login page:
-
-- `http://localhost:5173/login/admin`
+Admin login page: `http://localhost:5173/login/admin`
 
 ## Validation
 
@@ -275,6 +272,10 @@ Recommended smoke-test flows:
 - trainee registration and chat
 - instructor registration, approval, and login
 - document upload, library visibility, and grounded chat
+
+### RAG recovery
+
+If a document shows `Ready` in the UI but chat is not grounding answers and `/api/documents/query` returns no chunks, delete that document and upload it again. That means the Mongo record exists but the Chroma vectors for that upload do not.
 
 ## Notes
 

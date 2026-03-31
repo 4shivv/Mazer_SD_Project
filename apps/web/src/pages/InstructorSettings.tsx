@@ -38,7 +38,7 @@ export default function InstructorSettings() {
     personality_prompt: "",
     temperature: "0.3",
     max_tokens: "512",
-    retrieval_threshold: "0.75",
+    retrieval_threshold: "0.35",
   });
 
   async function loadConfig() {

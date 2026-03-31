@@ -4,7 +4,7 @@ export const INSTRUCTOR_CONFIG_DEFAULTS = {
   personalityPrompt: "",
   temperature: 0.3,
   maxTokens: 512,
-  retrievalThreshold: 0.75,
+  retrievalThreshold: 0.35,
 } as const;
 
 export function normalizePersonalityPrompt(value: string) {
