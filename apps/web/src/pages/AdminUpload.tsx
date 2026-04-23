@@ -375,14 +375,14 @@ export default function AdminUpload() {
                       display: "flex",
                       justifyContent: "space-between",
                       gap: "0.65rem",
-                      alignItems: "center",
+                      alignItems: "flex-start",
                       padding: "0.55rem 0.65rem",
                       borderRadius: "8px",
                       background: "rgba(10,11,16,0.26)",
                     }}
                   >
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, overflowWrap: "anywhere", fontSize: "0.9rem" }}>
+                    <div style={{ minWidth: 0, flex: "1 1 0", overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                      <div style={{ fontWeight: 600, fontSize: "0.9rem", lineHeight: 1.35 }}>
                         {entry.fileName}
                       </div>
                       <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
@@ -413,7 +413,7 @@ export default function AdminUpload() {
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
-                  alignItems: "center",
+                  alignItems: "flex-start",
                   gap: "0.65rem",
                   padding: "0.65rem 0.85rem",
                   border: "1px solid rgba(255,255,255,0.08)",
@@ -422,16 +422,26 @@ export default function AdminUpload() {
                   background: "rgba(10,11,16,0.35)",
                 }}
               >
-                <div style={{ textAlign: "left" }}>
-                  <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{doc.title}</div>
-                  <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+                <div
+                  style={{
+                    textAlign: "left",
+                    minWidth: 0,
+                    flex: "1 1 0",
+                    overflowWrap: "anywhere",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  <div style={{ fontWeight: 600, fontSize: "0.95rem", lineHeight: 1.35 }}>
+                    {doc.title}
+                  </div>
+                  <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.2rem", lineHeight: 1.35 }}>
                     {doc.original_filename} • {formatFileSize(doc.size_bytes)} • {formatStatus(doc.status)}
                   </div>
-                  <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+                  <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.15rem", lineHeight: 1.35 }}>
                     Type: {formatStatus(doc.document_type)} • Chunks: {doc.chunk_count}
                   </div>
                   {doc.processing_error && (
-                    <div style={{ fontSize: "0.8rem", color: "#ffb4b4", marginTop: "0.25rem" }}>
+                    <div style={{ fontSize: "0.8rem", color: "#ffb4b4", marginTop: "0.25rem", lineHeight: 1.35 }}>
                       Error: {doc.processing_error}
                     </div>
                   )}
