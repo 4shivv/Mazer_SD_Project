@@ -6,7 +6,9 @@ This README is the entry point for engineers running, deploying, or maintaining 
 
 ## Contents
 
-[What this is](#what-this-is) · [Architecture](#architecture) · [Repo layout](#repo-layout) · [Prerequisites](#prerequisites) · [Run locally](#run-locally) · [Production](#production) · [Admin bootstrap](#admin-bootstrap) · [Validate](#validate) · [Troubleshoot](#troubleshoot) · [Security posture](#security-posture) · [Teardown](#teardown)
+[What this is](#what-this-is) · [Architecture](#architecture) · [Repo layout](#repo-layout) · [Prerequisites](#prerequisites) · [Run locally](#run-locally) · [Production](#production) · [Admin bootstrap](#admin-bootstrap) · [Validate](#validate) · [Observability](#observability) · [Troubleshoot](#troubleshoot) · [Security posture](#security-posture) · [Teardown](#teardown)
+
+Day-2 ops (backups, rotations, upgrades, recovery) live in [MAINTAINING.md](./MAINTAINING.md).
 
 ---
 
@@ -38,7 +40,7 @@ The system runs five services orchestrated through a single Node/Express API.
 
 **Model policy.** The API enforces a strict q4 model lineup at startup: `llama3:8b-instruct-q4_K_M`, `mistral:7b-instruct-q4_0`, `llama3.1:8b-instruct-q4_K_M`. Embedding uses `nomic-embed-text`. Any other tag fails a startup assertion.
 
-**Transport.** Traffic between services uses TLS 1.3 via stunnel proxies in the production stack. The dev stack runs plain HTTP on the local Docker network for convenience.
+**Transport.** Traffic between services uses TLS 1.3 via stunnel proxies in the production stack. Stunnel wraps each plain TCP service in a TLS 1.3 tunnel so every hop between services is encrypted. The dev stack runs plain HTTP on the local Docker network for convenience.
 
 **Capacity envelope.** Up to 12 concurrent chat sessions, derived from the 24GB VRAM budget on a single RTX 3090. The API queues beyond the cap and rejects when GPU exceeds 83°C or CPU exceeds 75°C.
 
@@ -73,6 +75,8 @@ scripts/                  # Cert generation and production verification
 - 64GB RAM, NVMe SSD (2TB+) for hot data, HDD (2TB+) for logs
 - NVIDIA Container Toolkit for GPU passthrough
 - Air gapped network with no internet gateway
+
+The GPU is optional at the compose level: the production stack runs without `docker-compose.gpu.yml` and Ollama falls back to CPU inference. Expect significantly lower throughput and plan concurrency accordingly — the 12 session cap assumes GPU inference.
 
 ---
 
@@ -248,6 +252,27 @@ cd apps/web && npm install && npm test && npm run build
 
 ---
 
+## Observability
+
+The API exposes a single health endpoint. There is no Prometheus, no Grafana, no separate metrics stream.
+
+**GET `/api/health`** (unauthenticated) reports:
+
+- `mongodb`, `chromadb`, `ollama` — service status (`up` or `down`)
+- `gpu` — temperature and VRAM when `nvidia-smi` is available
+- `cpu` — temperature when Linux thermal zones are readable
+- `transport_security` — internal TLS mode and compliance state
+- `active_sessions` / `max_sessions` — capacity headroom
+
+**Logs.** Pino writes structured JSON to `LOG_DIR` (`./logs` in dev, `/mnt/hdd/logs` in prod).
+
+```bash
+docker compose logs -f api                   # dev
+tail -f /mnt/hdd/logs/*.log                  # prod host
+```
+
+---
+
 ## Troubleshoot
 
 **Symptom: API logs show `sh: 1: tsx: not found`.**
@@ -299,24 +324,24 @@ The application enforces a defined set of guarantees. Everything outside that se
 
 **What the application enforces.**
 
-- Passwords are stored as bcrypt hashes with cost factor 12.
-- Sessions are signed JWTs that expire after 24 hours, delivered as HttpOnly cookies.
-- Transport between services uses TLS 1.3 via stunnel on every hop in the production stack.
-- Authorization is checked on every protected route by role (trainee, instructor, admin).
-- Model policy is enforced at startup: any tag outside the three approved q4 variants fails fast.
-- Admin secure wipe overwrites message and conversation fields three times with random data, then calls MongoDB `compact` to release freed blocks, then drops the Chroma collection for embeddings.
-- Thermal gating polls GPU and CPU every 30 seconds and rejects new requests above 83°C (GPU) or 75°C (CPU).
-- Session capacity caps at twelve concurrent chats and queues beyond that to prevent VRAM overflow.
-- Every request body is validated against a Zod schema at the route boundary.
-- Every internal URL and outbound call is restricted to the Docker network.
+- The API stores passwords as bcrypt hashes with cost factor 12.
+- The API signs session JWTs that expire after 24 hours and delivers them as HttpOnly cookies.
+- Stunnel proxies wrap every hop between services in the production stack with TLS 1.3.
+- The API checks authorization on every protected route by role (trainee, instructor, admin).
+- The API enforces the approved q4 model lineup at startup; any tag outside the three variants fails fast.
+- Admin wipe overwrites message and conversation fields three times with random data, runs MongoDB `compact` to release freed blocks, then drops the Chroma collection for embeddings.
+- The API polls GPU and CPU every 30 seconds and rejects requests above 83°C (GPU) or 75°C (CPU).
+- The API caps concurrent chats at twelve and queues the rest to prevent VRAM overflow.
+- The API validates every request body against a Zod schema at the route boundary.
+- The API makes no outbound calls to public hosts; service to service traffic stays on the Docker network.
 
 **What the operator owns.**
 
-- Encryption at rest: configure LUKS on `/mnt/nvme` at the host OS. The application does not add field level encryption.
-- Network isolation: the Docker network is bridged internally, but the host must have no internet gateway in production.
-- OS hardening: CPU cooling headroom, ext4 filesystem choice, kernel updates, SSH lockdown.
-- Forensic grade wipe: the application overwrites fields in place, not disk sectors. Full forensic erasure requires `shred` on `/mnt/nvme/*` on the host plus `fstrim` on the volume.
-- Physical security of the host, the drives, and the key material under `ops/tls/`.
+- Encryption at rest: enable LUKS on `/mnt/nvme` at the host OS. The application does not add field level encryption.
+- Network isolation: run the host with no internet gateway. The Docker network is bridged, but nothing prevents the host itself from reaching outside if a gateway exists.
+- OS hardening: provide CPU cooling headroom, keep the kernel patched, restrict SSH, and use ext4 on the data mounts.
+- Forensic erasure: shred `/mnt/nvme/*` and run `fstrim` after a wipe. The application overwrites fields in place, not disk sectors.
+- Physical security: protect the host, the drives, and the key material under `ops/tls/`.
 
 ---
 
