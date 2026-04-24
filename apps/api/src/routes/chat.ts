@@ -129,12 +129,14 @@ function buildRetrievalQuery(
   currentPrompt: string
 ) {
   const relevantHistory = contextMessages
-    .slice(-4)
-    .map((message) => `${message.role}: ${message.content}`)
+    .filter((message) => message.role === "user")
+    .slice(-2)
+    .map((message) => message.content.trim())
+    .filter(Boolean)
     .join("\n");
 
   return relevantHistory
-    ? `${relevantHistory}\nuser: ${currentPrompt}`
+    ? `${relevantHistory}\n${currentPrompt}`
     : currentPrompt;
 }
 

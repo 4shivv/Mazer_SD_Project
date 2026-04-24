@@ -3,7 +3,7 @@ import { createDocumentRecord, deleteDocumentById, findDocumentById, listAllDocu
 import { getEffectiveInstructorConfigByUserId, getLatestInstructorConfig, INSTRUCTOR_CONFIG_DEFAULTS } from "../../repositories/instructorConfigRepository.js";
 import { findUserById } from "../../repositories/userRepository.js";
 import type { DocumentType } from "../../models/Document.js";
-import { addDocumentsToChroma, deleteDocumentFromChroma, queryChroma, type ChromaQueryResult } from "./chromaClient.js";
+import { addDocumentsToChroma, deleteDocumentFromChroma, queryChroma, searchChromaByDocumentText, type ChromaQueryResult } from "./chromaClient.js";
 import { extractDocumentText } from "./documentParsingService.js";
 import { embedTexts } from "./embeddingService.js";
 import { chunkTextForEmbedding } from "./textChunking.js";
@@ -405,6 +405,251 @@ function toSimilarityScore(distance: number | null) {
   return Math.max(0, Math.min(1, similarity));
 }
 
+const QUERY_STOP_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "across",
+  "all",
+  "are",
+  "based",
+  "be",
+  "both",
+  "by",
+  "compare",
+  "define",
+  "describe",
+  "does",
+  "document",
+  "documents",
+  "explain",
+  "for",
+  "from",
+  "give",
+  "how",
+  "in",
+  "is",
+  "it",
+  "its",
+  "me",
+  "of",
+  "on",
+  "so",
+  "sources",
+  "summarize",
+  "tell",
+  "that",
+  "the",
+  "their",
+  "these",
+  "this",
+  "those",
+  "to",
+  "uploaded",
+  "using",
+  "what",
+  "which",
+  "with",
+]);
+
+const QUERY_WEAK_TERMS = new Set([
+  "configuration",
+  "material",
+  "materials",
+  "reference",
+  "references",
+  "source",
+  "sources",
+  "system",
+]);
+
+const NAVIGATION_TERMS = new Set([
+  "chapter",
+  "chapters",
+  "contents",
+  "heading",
+  "headings",
+  "page",
+  "pages",
+  "section",
+  "sections",
+  "toc",
+]);
+
+function normalizeLexicalText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function expandQueryToken(token: string) {
+  if (token === "ew") {
+    return ["ew", "electronic", "warfare"];
+  }
+  if (token === "tls") {
+    return ["tls", "terrestrial", "layer", "system"];
+  }
+  if (token === "chapters") {
+    return ["chapters", "chapter"];
+  }
+  if (token === "sections") {
+    return ["sections", "section"];
+  }
+  if (token === "contents") {
+    return ["contents", "content"];
+  }
+  return [token];
+}
+
+function extractContentTerms(query: string) {
+  const normalized = normalizeLexicalText(query);
+  if (!normalized) return [];
+
+  const terms = normalized
+    .split(" ")
+    .flatMap((token) => expandQueryToken(token))
+    .filter((token) => token.length >= 2)
+    .filter((token) => !QUERY_STOP_WORDS.has(token))
+    .filter((token) => !QUERY_WEAK_TERMS.has(token));
+
+  return Array.from(new Set(terms));
+}
+
+function buildContentPhrase(query: string, contentTerms: string[]) {
+  if (contentTerms.length >= 2) {
+    return contentTerms.join(" ");
+  }
+
+  return "";
+}
+
+function hasNavigationIntent(query: string) {
+  const normalized = normalizeLexicalText(query);
+  if (!normalized) return false;
+  const tokens = normalized.split(" ");
+  if (tokens.some((token) => NAVIGATION_TERMS.has(token))) {
+    return true;
+  }
+  return normalized.includes("table of contents");
+}
+
+function toSearchCase(token: string) {
+  if (token.length <= 3) {
+    return token.toUpperCase();
+  }
+  return `${token[0]?.toUpperCase() ?? ""}${token.slice(1)}`;
+}
+
+function buildLineLevelLexicalPhrases(query: string) {
+  return query
+    .split(/\r?\n/)
+    .map((line) => normalizeLexicalText(line))
+    .filter((line) => line.split(" ").length >= 2)
+    .filter((line) => line.length >= 8)
+    .slice(-4);
+}
+
+function buildLexicalSearchPhrases(contentTerms: string[], contentPhrase: string, rawQuery: string, navigationIntent: boolean) {
+  const phrases = new Set<string>();
+
+  if (contentPhrase) {
+    phrases.add(contentPhrase);
+    phrases.add(contentPhrase.split(" ").map((token) => toSearchCase(token)).join(" "));
+  }
+
+  for (const term of contentTerms) {
+    phrases.add(term);
+    phrases.add(toSearchCase(term));
+  }
+
+  for (const linePhrase of buildLineLevelLexicalPhrases(rawQuery)) {
+    phrases.add(linePhrase);
+    phrases.add(linePhrase.split(" ").map((token) => toSearchCase(token)).join(" "));
+  }
+
+  if (navigationIntent) {
+    phrases.add("table of contents");
+    phrases.add("Table Of Contents");
+    phrases.add("contents");
+    phrases.add("Contents");
+    phrases.add("chapter");
+    phrases.add("Chapter");
+    phrases.add("section");
+    phrases.add("Section");
+  }
+
+  return Array.from(phrases)
+    .map((phrase) => phrase.trim())
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+type RerankSignals = {
+  similarity: number;
+  matchedTermCount: number;
+  tokenCoverage: number;
+  exactPhraseMatch: boolean;
+  lexicalMatch: boolean;
+  score: number;
+};
+
+function computeRerankSignals(
+  contentTerms: string[],
+  contentPhrase: string,
+  result: ChromaQueryResult,
+  navigationIntent: boolean
+): RerankSignals {
+  const similarity = toSimilarityScore(result.distance) ?? 0;
+  const title = typeof result.metadata?.title === "string" ? result.metadata.title : "";
+  const sectionHeader = typeof result.metadata?.section_header === "string" ? result.metadata.section_header : "";
+  const haystack = normalizeLexicalText([
+    result.document,
+    title,
+    sectionHeader,
+  ].join(" "));
+  const headerHaystack = normalizeLexicalText([title, sectionHeader].join(" "));
+  const pageNumber = typeof result.metadata?.page_number === "number" ? result.metadata.page_number : null;
+
+  const matchedTermCount = contentTerms.reduce((count, term) => (
+    haystack.includes(term) ? count + 1 : count
+  ), 0);
+  const tokenCoverage = contentTerms.length > 0 ? matchedTermCount / contentTerms.length : 0;
+  const exactPhraseMatch = Boolean(contentPhrase) && haystack.includes(contentPhrase);
+  const lexicalMatch = exactPhraseMatch || matchedTermCount > 0;
+
+  let score = similarity;
+  if (exactPhraseMatch) score += 1;
+  score += tokenCoverage * 0.6;
+  if (contentTerms.length > 0 && matchedTermCount === contentTerms.length) {
+    score += 0.25;
+  }
+  if (navigationIntent) {
+    if (haystack.includes("table of contents") || headerHaystack.includes("table of contents")) {
+      score += 1.2;
+    }
+    if (haystack.includes("chapter ") || headerHaystack.includes("chapter")) {
+      score += 0.45;
+    }
+    if (headerHaystack && contentTerms.some((term) => headerHaystack.includes(term))) {
+      score += 0.35;
+    }
+    if (pageNumber !== null && pageNumber <= 5) {
+      score += 0.15;
+    }
+  }
+
+  return {
+    similarity,
+    matchedTermCount,
+    tokenCoverage,
+    exactPhraseMatch,
+    lexicalMatch,
+    score,
+  };
+}
+
 export function toSourceReference(metadata: Record<string, unknown>): SourceReference {
   const title = typeof metadata.title === "string" && metadata.title.trim() ? metadata.title.trim() : null;
   const sourceFile = typeof metadata.source_file === "string" && metadata.source_file.trim()
@@ -445,6 +690,87 @@ function meetsThreshold(result: ChromaQueryResult, threshold: number) {
   return similarity === null || similarity >= threshold;
 }
 
+function getResultDocumentId(result: ChromaQueryResult) {
+  const documentId = result.metadata?.document_id;
+  if (typeof documentId === "string" && documentId.trim()) {
+    return documentId.trim();
+  }
+  return null;
+}
+
+function selectDiverseResults(results: ChromaQueryResult[], topK: number) {
+  if (results.length <= topK) {
+    return results;
+  }
+
+  const selected: ChromaQueryResult[] = [];
+  const seenDocumentIds = new Set<string>();
+
+  for (const result of results) {
+    const documentId = getResultDocumentId(result);
+    if (documentId && seenDocumentIds.has(documentId)) {
+      continue;
+    }
+    selected.push(result);
+    if (documentId) {
+      seenDocumentIds.add(documentId);
+    }
+    if (selected.length >= topK) {
+      return selected;
+    }
+  }
+
+  for (const result of results) {
+    if (selected.includes(result)) {
+      continue;
+    }
+    selected.push(result);
+    if (selected.length >= topK) {
+      return selected;
+    }
+  }
+
+  return selected;
+}
+
+async function searchLexicalFallbackResults(args: {
+  rawQuery: string;
+  contentTerms: string[];
+  contentPhrase: string;
+  navigationIntent: boolean;
+  documentTypes?: string[];
+  requestedTopK: number;
+}) {
+  const phrases = buildLexicalSearchPhrases(
+    args.contentTerms,
+    args.contentPhrase,
+    args.rawQuery,
+    args.navigationIntent
+  );
+  if (phrases.length === 0) {
+    return [];
+  }
+
+  const phraseResults = await Promise.all(
+    phrases.map((phrase) => searchChromaByDocumentText({
+      contains: phrase,
+      where: buildWhereFilter(args.documentTypes),
+      limit: Math.min(args.requestedTopK * 4, 20),
+    }))
+  );
+
+  const deduped = new Map<string, ChromaQueryResult>();
+  for (const results of phraseResults) {
+    for (const result of results) {
+      if (!deduped.has(result.id)) {
+        deduped.set(result.id, result);
+      }
+    }
+  }
+
+  return Array.from(deduped.values());
+}
+
 type KnowledgeBaseQueryArgs = {
   query: string;
   actorUserId?: string;
@@ -458,18 +784,53 @@ export async function queryKnowledgeBase(args: KnowledgeBaseQueryArgs) {
     throw new DocumentServiceError(400, "query_required");
   }
 
+  const requestedTopK = Math.max(1, Math.min(args.topK ?? 3, 10));
   const retrievalThreshold = await resolveRetrievalThresholdForActor(args.actorUserId);
+  const contentTerms = extractContentTerms(normalizedQuery);
+  const contentPhrase = buildContentPhrase(normalizedQuery, contentTerms);
+  const navigationIntent = hasNavigationIntent(normalizedQuery);
   const [queryEmbedding] = await embedTexts([normalizedQuery]);
-  const results = await queryChroma({
-    queryEmbedding,
-    topK: Math.max(1, Math.min(args.topK ?? 3, 10)),
-    where: buildWhereFilter(args.documentTypes),
-  });
+  const where = buildWhereFilter(args.documentTypes);
+  const [vectorResults, lexicalResults] = await Promise.all([
+    queryChroma({
+      queryEmbedding,
+      topK: Math.max(requestedTopK, Math.min(requestedTopK * 8, 50)),
+      where,
+    }),
+    searchLexicalFallbackResults({
+      rawQuery: normalizedQuery,
+      contentTerms,
+      contentPhrase,
+      navigationIntent,
+      documentTypes: args.documentTypes,
+      requestedTopK,
+    }),
+  ]);
+  const mergedResults = Array.from(new Map(
+    [...vectorResults, ...lexicalResults].map((result) => [result.id, result] as const)
+  ).values());
+  const rescoredResults = mergedResults
+    .map((result) => ({ result, signals: computeRerankSignals(contentTerms, contentPhrase, result, navigationIntent) }))
+    .filter(({ result, signals }) => {
+      if (signals.exactPhraseMatch) return true;
+      if (signals.lexicalMatch) {
+        return meetsThreshold(result, retrievalThreshold) || signals.tokenCoverage >= 0.5;
+      }
+      return meetsThreshold(result, retrievalThreshold);
+    })
+    .sort((left, right) => {
+      if (right.signals.score !== left.signals.score) {
+        return right.signals.score - left.signals.score;
+      }
+      return right.signals.similarity - left.signals.similarity;
+    });
+  const selectedResults = selectDiverseResults(
+    rescoredResults.map(({ result }) => result),
+    requestedTopK
+  );
 
   return {
-    chunks: results
-      .filter((result) => meetsThreshold(result, retrievalThreshold))
-      .map((result) => {
+    chunks: selectedResults.map((result) => {
         const metadata = {
           ...(result.metadata ?? {}),
           similarity_score: toSimilarityScore(result.distance),

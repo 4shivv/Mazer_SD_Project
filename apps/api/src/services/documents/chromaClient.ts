@@ -155,3 +155,41 @@ export async function queryChroma(args: {
     distance: typeof distances[index] === "number" ? distances[index] : null,
   }));
 }
+
+export async function searchChromaByDocumentText(args: {
+  contains: string;
+  limit?: number;
+  where?: Record<string, unknown>;
+}): Promise<ChromaQueryResult[]> {
+  const needle = args.contains.trim();
+  if (!needle) return [];
+
+  const collection = await ensureCollection();
+  const response = await fetch(`${CHROMA_BASE_PATH}/collections/${collection.id}/get`, {
+    method: "POST",
+    headers: CHROMA_HEADERS,
+    body: JSON.stringify({
+      where: args.where,
+      where_document: { $contains: needle },
+      include: ["documents", "metadatas"],
+      limit: args.limit,
+    }),
+  });
+
+  const payload = await parseJsonResponse<{
+    ids?: string[];
+    documents?: string[];
+    metadatas?: Record<string, unknown>[];
+  }>(response);
+
+  const ids = payload.ids ?? [];
+  const documents = payload.documents ?? [];
+  const metadatas = payload.metadatas ?? [];
+
+  return ids.map((id, index) => ({
+    id,
+    document: documents[index] ?? "",
+    metadata: metadatas[index] ?? {},
+    distance: null,
+  }));
+}
