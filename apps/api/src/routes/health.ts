@@ -1,6 +1,6 @@
 import { Router } from "express";
 import mongoose from "mongoose";
-import { getGpuTelemetry } from "../middleware/thermalGate.js";
+import { getCpuTelemetry, getGpuTelemetry } from "../middleware/thermalGate.js";
 import { getActiveSessionCount, getConfiguredMaxConcurrentSessions } from "../middleware/capacityGate.js";
 import { getInternalTransportSecurityStatus } from "../runtime/internalTransportSecurity.js";
 
@@ -46,6 +46,7 @@ healthRouter.get("/", async (_req, res) => {
   ]);
 
   const gpu = getGpuTelemetry();
+  const cpu = getCpuTelemetry();
   const activeSessions = getActiveSessionCount();
   const maxConcurrentSessions = getConfiguredMaxConcurrentSessions();
   const transportSecurity = getInternalTransportSecurityStatus();
@@ -74,6 +75,14 @@ healthRouter.get("/", async (_req, res) => {
             temperature_c: gpu.gpu_temp_c,
             vram_used_mb: gpu.vram_used_mb,
             vram_total_mb: gpu.vram_total_mb,
+          }
+        : {}),
+    },
+    cpu: {
+      available: cpu.available,
+      ...(cpu.available
+        ? {
+            temperature_c: cpu.cpu_temp_c,
           }
         : {}),
     },

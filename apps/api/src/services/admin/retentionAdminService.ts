@@ -13,11 +13,13 @@ import {
 } from "../../repositories/retentionPolicyRepository.js";
 import { rm } from "node:fs/promises";
 import { isAbsolute } from "node:path";
+import mongoose from "mongoose";
 import {
   LocalMongoSecureWipeAdapter,
   type SecureWipeAdapter,
   type SecureWipeAudit,
 } from "./secureWipeAdapter.js";
+import { resetChromaCollection } from "../documents/chromaClient.js";
 
 const DEFAULT_CONFIRMATION_CODE = "MAZER_CONFIRM_WIPE";
 const DEFAULT_SWEEP_LIMIT = 250;
@@ -65,46 +67,76 @@ async function wipeEmbeddingsIfRequested(shouldWipe: boolean): Promise<Embedding
     };
   }
 
+  // Legacy override: if an external wipe endpoint is configured, delegate to it.
   const wipeEndpoint = process.env.CHROMA_WIPE_ENDPOINT;
-  // Offline/local mode can intentionally skip embedding wipe until an internal endpoint is available.
-  if (!wipeEndpoint) {
-    return {
-      status: "skipped",
-      embeddingsDeleted: 0,
-    };
-  }
+  if (wipeEndpoint) {
+    try {
+      const response = await fetch(wipeEndpoint, { method: "POST" });
+      if (!response.ok) {
+        const body = await response.text();
+        return {
+          status: "failed",
+          embeddingsDeleted: 0,
+          error: `chroma_wipe_failed_${response.status}:${body}`,
+        };
+      }
 
-  try {
-    const response = await fetch(wipeEndpoint, { method: "POST" });
-    if (!response.ok) {
-      const body = await response.text();
+      let embeddingsDeleted = 0;
+      try {
+        const payload = (await response.json()) as Record<string, unknown>;
+        const rawValue = payload.embeddings_deleted ?? payload.deleted ?? 0;
+        embeddingsDeleted = Number(rawValue) || 0;
+      } catch {
+        embeddingsDeleted = 0;
+      }
+
+      return {
+        status: "completed",
+        embeddingsDeleted,
+      };
+    } catch (error) {
       return {
         status: "failed",
         embeddingsDeleted: 0,
-        error: `chroma_wipe_failed_${response.status}:${body}`,
+        error: error instanceof Error ? error.message : "chroma_wipe_request_failed",
       };
     }
+  }
 
-    let embeddingsDeleted = 0;
-    try {
-      const payload = (await response.json()) as Record<string, unknown>;
-      const rawValue = payload.embeddings_deleted ?? payload.deleted ?? 0;
-      embeddingsDeleted = Number(rawValue) || 0;
-    } catch {
-      embeddingsDeleted = 0;
-    }
-
+  // Default path: drop the Chroma collection so all embeddings are physically discarded.
+  try {
+    await resetChromaCollection();
     return {
       status: "completed",
-      embeddingsDeleted,
+      embeddingsDeleted: 0,
     };
   } catch (error) {
     return {
       status: "failed",
       embeddingsDeleted: 0,
-      error: error instanceof Error ? error.message : "chroma_wipe_request_failed",
+      error: error instanceof Error ? error.message : "chroma_reset_failed",
     };
   }
+}
+
+async function compactConversationStorage(): Promise<string[]> {
+  const errors: string[] = [];
+  const db = mongoose.connection?.db;
+  if (!db) {
+    return ["compact_skipped_no_connection"];
+  }
+  for (const collectionName of ["messages", "conversations"]) {
+    try {
+      await db.command({ compact: collectionName, force: true });
+    } catch (error) {
+      errors.push(
+        error instanceof Error
+          ? `compact_failed_${collectionName}:${error.message}`
+          : `compact_failed_${collectionName}`
+      );
+    }
+  }
+  return errors;
 }
 
 function parseConfiguredPaths(value?: string) {
@@ -283,6 +315,13 @@ export async function wipeStoredData(args: {
 
     await deleteMessagesByConversationIds(conversationIds);
     conversationsDeleted = await deleteConversationsByIds(conversationIds);
+
+    if (conversationsDeleted > 0) {
+      const compactErrors = await compactConversationStorage();
+      if (compactErrors.length > 0) {
+        partialErrors = [...partialErrors, ...compactErrors];
+      }
+    }
   }
 
   const embeddingWipe = await wipeEmbeddingsIfRequested(args.wipeEmbeddings);

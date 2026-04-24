@@ -6,6 +6,62 @@ function getUrl(path: string): string {
   return base ? `${base.replace(/\/$/, "")}${path}` : path;
 }
 
+/**
+ * Error thrown for non-OK API responses. Carries the server error code and any
+ * retry hint so callers can branch on specific failure modes (NFR-R3).
+ */
+export class ApiError extends Error {
+  status: number;
+  code: string | null;
+  retryAfterSeconds: number | null;
+
+  constructor(
+    message: string,
+    status: number,
+    code: string | null,
+    retryAfterSeconds: number | null
+  ) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+function buildApiError(
+  status: number,
+  text: string,
+  data: unknown
+): ApiError {
+  let errMsg = text || `Request failed: ${status}`;
+  let code: string | null = null;
+  let retryAfterSeconds: number | null = null;
+
+  if (typeof data === "object" && data !== null) {
+    const d = data as any;
+    if (typeof d.message === "string" && d.message.trim()) {
+      errMsg = d.message;
+    } else if (typeof d.error === "string") {
+      errMsg = d.error;
+    } else if (typeof d.error !== "undefined") {
+      errMsg = JSON.stringify(d.error);
+    }
+
+    if (typeof d.error === "string") code = d.error;
+    if (typeof d.retry_after_seconds === "number") {
+      retryAfterSeconds = d.retry_after_seconds;
+    }
+  }
+
+  // Surface the SDD-spec retry hint for recognized outage codes.
+  if (code === "database_unavailable" && typeof retryAfterSeconds === "number") {
+    errMsg = `Database temporarily unavailable. Retrying in ${retryAfterSeconds}s…`;
+  }
+
+  return new ApiError(errMsg, status, code, retryAfterSeconds);
+}
+
 /** Shared API client: JSON, credentials, safe error handling. */
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(getUrl(path), {
@@ -29,22 +85,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   if (!res.ok) {
-    let errMsg = text || `Request failed: ${res.status}`;
-
-    if (typeof data === "object" && data !== null) {
-      const message = "message" in data ? (data as any).message : undefined;
-      const error = "error" in data ? (data as any).error : undefined;
-
-      if (typeof message === "string" && message.trim()) {
-        errMsg = message;
-      } else if (typeof error === "string") {
-        errMsg = error;
-      } else if (typeof error !== "undefined") {
-        errMsg = JSON.stringify(error);
-      }
-    }
-
-    throw new Error(errMsg);
+    throw buildApiError(res.status, text, data);
   }
   if (data !== null) return data as T;
   return (text ? JSON.parse(text) : null) as T;
@@ -250,6 +291,7 @@ export async function sendChat(prompt: string, conversationId: string) {
 type ChatStreamHandlers = {
   onStart?: (payload: Partial<ChatResponse>) => void;
   onToken?: (token: string) => void;
+  onStatus?: (message: string) => void;
   onComplete?: (payload: ChatResponse) => void;
   onError?: (message: string) => void;
 };
@@ -275,21 +317,7 @@ export async function sendChatStream(
     try {
       data = JSON.parse(text);
     } catch {}
-
-    let errMsg = text || `Request failed: ${res.status}`;
-    if (typeof data === "object" && data !== null) {
-      const message = "message" in data ? (data as any).message : undefined;
-      const error = "error" in data ? (data as any).error : undefined;
-      if (typeof message === "string" && message.trim()) {
-        errMsg = message;
-      } else if (typeof error === "string") {
-        errMsg = error;
-      } else if (typeof error !== "undefined") {
-        errMsg = JSON.stringify(error);
-      }
-    }
-
-    throw new Error(errMsg);
+    throw buildApiError(res.status, text, data);
   }
 
   if (!res.body) {
@@ -323,6 +351,9 @@ export async function sendChatStream(
       handlers.onStart?.(payload);
     } else if (eventName === "token" && typeof payload.text === "string") {
       handlers.onToken?.(payload.text);
+    } else if (eventName === "status") {
+      const message = typeof payload.message === "string" ? payload.message : "";
+      if (message) handlers.onStatus?.(message);
     } else if (eventName === "complete") {
       finalPayload = payload as ChatResponse;
       handlers.onComplete?.(finalPayload);

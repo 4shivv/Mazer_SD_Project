@@ -45,7 +45,7 @@ services:
       - mongo_data:/data/db
 
   chroma:
-    image: chromadb/chroma:latest
+    image: chromadb/chroma:0.6.3
     restart: unless-stopped
     ports:
       - "8000:8000"

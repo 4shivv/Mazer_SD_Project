@@ -27,6 +27,8 @@ export interface SecureWipeAdapter {
   overwriteBeforeDelete(args: SecureWipeInvocation): Promise<SecureWipeAudit>;
 }
 
+const OVERWRITE_PASSES = 3;
+
 function buildOverwriteToken() {
   return `wipe_${randomBytes(24).toString("hex")}`;
 }
@@ -54,7 +56,7 @@ export class LocalMongoSecureWipeAdapter implements SecureWipeAdapter {
       return {
         status: "completed",
         wipe_reason: args.reason,
-        overwrite_passes: 1,
+        overwrite_passes: OVERWRITE_PASSES,
         conversations_targeted: 0,
         conversations_overwritten: 0,
         messages_overwritten: 0,
@@ -62,24 +64,32 @@ export class LocalMongoSecureWipeAdapter implements SecureWipeAdapter {
       };
     }
 
-    const overwriteToken = buildOverwriteToken();
+    let conversationsOverwritten = 0;
+    let messagesOverwritten = 0;
+    let passesCompleted = 0;
 
     try {
-      const [conversationsOverwritten, messagesOverwritten] = await Promise.all([
-        overwriteConversationFieldsByIds({
-          conversationIds: args.conversationIds,
-          overwriteToken,
-        }),
-        overwriteMessageContentByConversationIds({
-          conversationIds: args.conversationIds,
-          overwriteToken,
-        }),
-      ]);
+      for (let pass = 0; pass < OVERWRITE_PASSES; pass += 1) {
+        const overwriteToken = buildOverwriteToken();
+        const [convResult, msgResult] = await Promise.all([
+          overwriteConversationFieldsByIds({
+            conversationIds: args.conversationIds,
+            overwriteToken,
+          }),
+          overwriteMessageContentByConversationIds({
+            conversationIds: args.conversationIds,
+            overwriteToken,
+          }),
+        ]);
+        conversationsOverwritten = convResult;
+        messagesOverwritten = msgResult;
+        passesCompleted = pass + 1;
+      }
 
       return {
         status: "completed",
         wipe_reason: args.reason,
-        overwrite_passes: 1,
+        overwrite_passes: passesCompleted,
         conversations_targeted: args.conversationIds.length,
         conversations_overwritten: conversationsOverwritten,
         messages_overwritten: messagesOverwritten,
@@ -90,7 +100,7 @@ export class LocalMongoSecureWipeAdapter implements SecureWipeAdapter {
       return {
         status: "failed",
         wipe_reason: args.reason,
-        overwrite_passes: 0,
+        overwrite_passes: passesCompleted,
         conversations_targeted: args.conversationIds.length,
         conversations_overwritten: 0,
         messages_overwritten: 0,

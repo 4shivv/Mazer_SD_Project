@@ -26,6 +26,24 @@ import { ModelPolicyError, resolveChatModel } from "../runtime/modelPolicy.js";
 
 export const router = Router();
 
+function isMongoNetworkError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const name = (error as { name?: string }).name;
+  return (
+    name === "MongoNetworkError"
+    || name === "MongoServerSelectionError"
+    || name === "MongooseServerSelectionError"
+  );
+}
+
+function respondDatabaseUnavailable(res: Response) {
+  return res.status(503).json({
+    error: "database_unavailable",
+    message: "Database temporarily unavailable. Please retry shortly.",
+    retry_after_seconds: 10,
+  });
+}
+
 const DEFAULT_SYSTEM_PROMPT = `
 You are the MAZER EW Training Assistant for adult military trainees and instructors.
 
@@ -166,6 +184,7 @@ router.post("/conversations", requireAuth, async (req, res) => {
     });
     return res.status(201).json(created);
   } catch (error) {
+    if (isMongoNetworkError(error)) return respondDatabaseUnavailable(res);
     if (error instanceof ChatHistoryServiceError) {
       return res.status(error.status).json({ error: error.code, message: error.message });
     }
@@ -185,6 +204,7 @@ router.get("/conversations", requireAuth, async (req, res) => {
     });
     return res.json(list);
   } catch (error) {
+    if (isMongoNetworkError(error)) return respondDatabaseUnavailable(res);
     if (error instanceof ChatHistoryServiceError) {
       return res.status(error.status).json({ error: error.code, message: error.message });
     }
@@ -203,6 +223,7 @@ router.get("/conversations/:id/messages", requireAuth, async (req, res) => {
     });
     return res.json(messages);
   } catch (error) {
+    if (isMongoNetworkError(error)) return respondDatabaseUnavailable(res);
     if (error instanceof ChatHistoryServiceError) {
       return res.status(error.status).json({ error: error.code, message: error.message });
     }
@@ -225,6 +246,7 @@ router.patch("/conversations/:id", requireAuth, async (req, res) => {
     });
     return res.json(updated);
   } catch (error) {
+    if (isMongoNetworkError(error)) return respondDatabaseUnavailable(res);
     if (error instanceof ChatHistoryServiceError) {
       return res.status(error.status).json({ error: error.code, message: error.message });
     }
@@ -243,6 +265,7 @@ router.delete("/conversations/:id", requireAuth, async (req, res) => {
     });
     return res.status(204).send();
   } catch (error) {
+    if (isMongoNetworkError(error)) return respondDatabaseUnavailable(res);
     if (error instanceof ChatHistoryServiceError) {
       return res.status(error.status).json({ error: error.code, message: error.message });
     }
@@ -387,6 +410,22 @@ router.post("/chat", requireAuth, capacityGate, thermalGate, async (req, res) =>
         warning: ragWarning,
       });
 
+      // If Ollama is cold-starting the model, the first token can take 10–30 seconds.
+      // Emit a single "status" SSE event after 2s so the client can show a warming-up
+      // hint instead of staring at an empty stream.
+      let sawFirstToken = false;
+      const warmingTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+        if (!sawFirstToken && !clientDisconnected) {
+          writeSseEvent(res, "status", {
+            message: "Model is warming up. First token may take ~20 seconds...",
+          });
+        }
+      }, 2000);
+      const clearWarmingTimer = () => {
+        if (warmingTimer) clearTimeout(warmingTimer);
+      };
+      res.on("close", clearWarmingTimer);
+
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -405,6 +444,10 @@ router.post("/chat", requireAuth, capacityGate, thermalGate, async (req, res) =>
 
         const token = typeof parsedLine.response === "string" ? parsedLine.response : "";
         if (token) {
+          if (!sawFirstToken) {
+            sawFirstToken = true;
+            clearWarmingTimer();
+          }
           rawReply += token;
           writeSseEvent(res, "token", { text: token });
         }

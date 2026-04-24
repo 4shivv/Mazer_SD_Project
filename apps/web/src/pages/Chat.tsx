@@ -66,6 +66,7 @@ export default function Chat() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
+  const [streamingStatus, setStreamingStatus] = useState<string | null>(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -211,6 +212,7 @@ export default function Chat() {
     if (!prompt || loading) return;
 
     setErrorBanner(null);
+    setStreamingStatus(null);
 
     const userMsg: Msg = { role: "user", text: prompt, ts: Date.now() };
     const assistantTs = Date.now() + 1;
@@ -239,8 +241,13 @@ export default function Chat() {
 
     try {
       const res = await sendChatStream(prompt, activeConversationId, {
+        onStatus(message) {
+          if (sidRef.current !== activeConversationId) return;
+          setStreamingStatus(message);
+        },
         onToken(token) {
           if (sidRef.current !== activeConversationId) return;
+          setStreamingStatus(null);
           setMessages((current) =>
             current.map((message) =>
               message.ts === assistantTs
@@ -251,6 +258,7 @@ export default function Chat() {
         },
         onComplete(payload) {
           if (sidRef.current !== activeConversationId) return;
+          setStreamingStatus(null);
           setMessages((current) =>
             current.map((message) =>
               message.ts === assistantTs
@@ -271,6 +279,7 @@ export default function Chat() {
       setHistoryRefreshKey((current) => current + 1);
     } catch (e: any) {
       if (sidRef.current !== activeConversationId) return;
+      setStreamingStatus(null);
       setMessages((current) =>
         current.filter((message) => !(message.ts === assistantTs && !message.text.trim()))
       );
@@ -384,6 +393,12 @@ export default function Chat() {
 
         {errorBanner && (
           <div className={styles.errorBanner}>{errorBanner}</div>
+        )}
+
+        {streamingStatus && (
+          <div className={styles.errorBanner} role="status" aria-live="polite">
+            {streamingStatus}
+          </div>
         )}
 
         {isDraft ? (

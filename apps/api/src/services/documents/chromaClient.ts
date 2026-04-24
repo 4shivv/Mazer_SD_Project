@@ -156,6 +156,18 @@ export async function queryChroma(args: {
   }));
 }
 
+export async function resetChromaCollection() {
+  const response = await fetch(
+    `${CHROMA_BASE_PATH}/collections/${encodeURIComponent(CHROMA_COLLECTION)}`,
+    { method: "DELETE", headers: CHROMA_HEADERS }
+  );
+  if (!response.ok && response.status !== 404) {
+    const body = await response.text();
+    throw new Error(`chroma_collection_delete_failed_${response.status}:${body}`);
+  }
+  cachedCollectionId = null;
+}
+
 export async function searchChromaByDocumentText(args: {
   contains: string;
   limit?: number;

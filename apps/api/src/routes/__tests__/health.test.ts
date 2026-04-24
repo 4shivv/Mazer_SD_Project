@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Mock thermalGate module
 vi.mock("../../middleware/thermalGate.js", () => ({
   getGpuTelemetry: vi.fn(),
+  getCpuTelemetry: vi.fn(() => ({ available: false })),
 }));
 
 // Mock capacityGate module

@@ -169,7 +169,7 @@ services:
       - mazerai_net
 
   chroma:
-    image: chromadb/chroma:latest
+    image: chromadb/chroma:0.6.3
     restart: unless-stopped
     network_mode: "service:chroma-tls"
     environment:
