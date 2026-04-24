@@ -1,156 +1,158 @@
-# Mazer SD Project
+# MazerAI
 
-Mazer is a local/offline AI assistant built with React, Node.js, MongoDB, ChromaDB, and Ollama.
+MazerAI is a local, offline AI training assistant for Electronic Warfare trainees. It runs as a Docker stack on one host, combining a React UI, a Node/Express API, a local LLM via Ollama, MongoDB, and a ChromaDB vector store. No internet connection is required at runtime.
 
-This README is intentionally short:
+This README is the entry point for engineers running, deploying, or maintaining the system. It covers setup from fresh clone through production deployment, the failure modes you will encounter, and the security boundary between what the application enforces and what the operator owns.
 
-- Testing setup: fastest ways to run the repo on a normal local machine
-- Production-style setup: closest deployment path to the system design target
-- Validation
-- Teardown
+## Contents
+
+[What this is](#what-this-is) · [Architecture](#architecture) · [Repo layout](#repo-layout) · [Prerequisites](#prerequisites) · [Run locally](#run-locally) · [Production](#production) · [Admin bootstrap](#admin-bootstrap) · [Validate](#validate) · [Troubleshoot](#troubleshoot) · [Security posture](#security-posture) · [Teardown](#teardown)
+
+---
+
+## What this is
+
+**The problem.** EW trainees need fast, accurate answers to technical questions in classified training environments where cloud AI tools are prohibited and instructor time is scarce. Training hours get lost to manual searching and waiting on help.
+
+**The solution.** A chat interface backed by a locally hosted LLM, grounded in approved training materials through retrieval augmented generation. Every request stays on one physical server. No data leaves the host.
+
+**Three roles.** Trainees register themselves and chat. Instructors upload documents (textbooks, hardware manuals, operational procedures) and tune AI behavior. Admins approve instructors, manage retention, and trigger secure data wipes.
+
+---
+
+## Architecture
+
+The system runs five services orchestrated through a single Node/Express API.
+
+**Request path.** User prompt → API authentication and input validation → RAG retrieval from Chroma (hybrid vector plus lexical) → prompt assembled with system instructions, conversation history, and retrieved chunks → Ollama streams tokens back via SSE → API persists the exchange in MongoDB.
+
+**Components.**
+
+| Component | Technology | Role |
+|---|---|---|
+| Web UI | React 19 + Vite | Chat, admin, and instructor panels routed by role |
+| API | Node 20 + Express + TypeScript | Auth, chat orchestration, RAG, session and thermal gating |
+| Ollama | Ollama + NVIDIA runtime | Local LLM inference and embedding, q4 quantized |
+| MongoDB | MongoDB 7 | Users, conversations, messages, instructor configs |
+| Chroma | ChromaDB 0.6.3 | Document embeddings and semantic search |
+
+**Model policy.** The API enforces a strict q4 model lineup at startup: `llama3:8b-instruct-q4_K_M`, `mistral:7b-instruct-q4_0`, `llama3.1:8b-instruct-q4_K_M`. Embedding uses `nomic-embed-text`. Any other tag fails a startup assertion.
+
+**Transport.** Traffic between services uses TLS 1.3 via stunnel proxies in the production stack. The dev stack runs plain HTTP on the local Docker network for convenience.
+
+**Capacity envelope.** Up to 12 concurrent chat sessions, derived from the 24GB VRAM budget on a single RTX 3090. The API queues beyond the cap and rejects when GPU exceeds 83°C or CPU exceeds 75°C.
+
+---
+
+## Repo layout
+
+```
+apps/api/                 # Node/Express backend (TypeScript)
+apps/web/                 # React frontend (Vite + TypeScript)
+docker/                   # Dockerfile + stunnel config
+docker-compose.yml        # Dev stack
+docker-compose.prod.yml   # Production stack
+docker-compose.gpu.yml    # NVIDIA GPU overlay for Ollama
+ops/tls/                  # Internal TLS certs (generated at deploy)
+scripts/                  # Cert generation and production verification
+```
+
+---
 
 ## Prerequisites
 
-- Node.js `20+`
-- npm `10+`
-- Docker Desktop, or Docker Engine with Compose
+**For development.**
 
-## Core Endpoints
+- Node 20+, npm 10+
+- Docker Desktop (macOS/Windows) or Docker Engine with Compose (Linux)
 
-- Web: `http://localhost:5173`
-- API: `http://localhost:4000`
-- API health: `http://localhost:4000/api/health`
-- MongoDB: `mongodb://localhost:27017`
-- Ollama: `http://localhost:11434`
-- Chroma: `http://localhost:8000`
+**For production deployment.**
 
-## Testing Setup
+- Ubuntu 24.04 LTS Server, kernel 6.8+
+- NVIDIA GPU with 24GB+ VRAM (RTX 3090 or equivalent), driver 550+
+- 64GB RAM, NVMe SSD (2TB+) for hot data, HDD (2TB+) for logs
+- NVIDIA Container Toolkit for GPU passthrough
+- Air gapped network with no internet gateway
 
-Yes: you can test this repo on a normal local computer.
+---
 
-Use the testing paths below for local development. They do not require the production compose stack.
+## Run locally
 
-### Option A: Docker API + Local Web
+Use this path for development and local testing on any platform.
 
-Use this for the quickest local test run.
+**Initial setup.**
 
-From the repo root:
+```bash
+cp apps/api/.env.example apps/api/.env
+```
+
+**Start the stack.**
 
 ```bash
 docker compose up --build -d
 docker compose exec ollama ollama pull llama3:8b-instruct-q4_K_M
 docker compose exec ollama ollama pull nomic-embed-text
-cd apps/web
-npm install
-npm run dev
+cd apps/web && npm install && npm run dev
 ```
 
-Create the first admin in a second terminal:
+The API runs in Docker on `:4000`. The web dev server runs locally on `:5173` and proxies `/api` to the container.
+
+**Bootstrap the first admin.** See [Admin bootstrap](#admin-bootstrap).
+
+**Core URLs.**
+
+- Web: http://localhost:5173
+- API: http://localhost:4000
+- Health: http://localhost:4000/api/health
+
+**Verify it's up.**
 
 ```bash
-cd apps/api
-npm install
-cp .env.example .env
-ADMIN_BOOTSTRAP_USERNAME=admin \
-ADMIN_BOOTSTRAP_EMAIL=admin@example.com \
-ADMIN_BOOTSTRAP_PASSWORD=change-this-before-first-run \
-npm run bootstrap:admin
+curl http://localhost:4000/api/health
 ```
 
-Notes:
+Expect `"status": "ok"` with every service reporting `"up"`. On macOS/Windows, the `gpu` and `cpu` fields will show `"available": false`, which is expected; the thermal gates fall through in degraded mode.
 
-- API runs in Docker.
-- Web runs locally.
-- Vite proxies `/api` to `http://localhost:4000`.
-- This is the recommended local test path on macOS, Windows, or Linux.
-- If `docker compose logs api` shows `sh: 1: tsx: not found`, the `api` service is not running with a valid dev dependency volume. This repo now uses a named `api_node_modules` volume so the `api` service gets a stable container-owned dependency tree. Recreate the API service after pulling the latest compose file:
+---
 
-```bash
-docker compose rm -sf api
-docker compose up --build -d api
-docker compose logs api --tail=50
-```
+## Production
 
-- If `tsx` is still missing after the rebuild, remove the API service and its named dependency volume, then rebuild:
+Use this path for deployment on a Linux host with an NVIDIA GPU. The production stack layers stunnel TLS proxies in front of every service and binds data to persistent host paths.
 
-```bash
-docker compose rm -sf api
-docker volume rm mazer_sd_project_api_node_modules
-docker compose up --build -d api
-docker compose logs api --tail=50
-```
-
-- Pull the exact Ollama model tag from this README and `docker-compose.yml`. For local Docker setup that tag is `llama3:8b-instruct-q4_K_M`; `llama3:8b-q4_K_M` will fail because it is not the configured model name in this repo.
-
-### Option B: Docker Infra + Local API + Local Web
-
-Use this if you need to debug the API directly.
-
-Start infra:
-
-```bash
-docker compose up -d mongo ollama chroma
-```
-
-Start the API:
-
-```bash
-cd apps/api
-npm install
-cp .env.example .env
-npm run dev
-```
-
-Start the web app in a second terminal:
-
-```bash
-cd apps/web
-npm install
-npm run dev
-```
-
-Notes:
-
-- Option B is also a normal local-computer workflow.
-- If your machine is weak for `llama3:8b-instruct-q4_K_M`, you can temporarily choose a smaller local model in `apps/api/.env` and pull that model in Ollama for development only.
-
-## Production-Style Setup
-
-This is the closest setup to the target architecture in `docs/SYSTEM_DESIGN_PLAN.md`: single Linux host, offline deployment, local MongoDB + ChromaDB + Ollama, optional NVIDIA GPU overlay.
-
-Use [docker-compose.prod.yml](/Users/shivaganeshnagamandla/GitHub_Projects/Mazer_SD_Project/docker-compose.prod.yml) for the production-style stack.
-
-Use [docker-compose.gpu.yml](/Users/shivaganeshnagamandla/GitHub_Projects/Mazer_SD_Project/docker-compose.gpu.yml) only on NVIDIA Docker hosts.
-
-### Generate internal TLS certificates
-
-The production-style stack expects internal TLS certs under `ops/tls`.
-
-From the repo root:
+**Initial setup.**
 
 ```bash
 bash scripts/generate-internal-certs.sh
 ```
 
-### Start the production-style stack
+This creates internal TLS certs under `ops/tls/` used by the stunnel proxies. Override the default host mount paths by exporting these before `docker compose up`:
+
+```bash
+export HOST_MONGO_DATA_DIR=/mnt/nvme/mongodb
+export HOST_CHROMA_DATA_DIR=/mnt/nvme/chromadb
+export HOST_OLLAMA_DATA_DIR=/mnt/nvme/ollama
+export HOST_LOG_DIR=/mnt/hdd/logs
+```
+
+**Start the stack.**
 
 ```bash
 docker compose -f docker-compose.prod.yml up --build -d
 ```
 
-If the host has NVIDIA Docker support, use the GPU overlay:
+If the host has NVIDIA Docker support, add the GPU overlay:
 
 ```bash
 docker compose -f docker-compose.prod.yml -f docker-compose.gpu.yml up --build -d
 ```
 
-Optional: pin Ollama to a specific NVIDIA GPU:
+Optional: pin Ollama to a specific GPU.
 
 ```bash
 OLLAMA_GPU_DEVICE=0 docker compose -f docker-compose.prod.yml -f docker-compose.gpu.yml up --build -d
 ```
 
-Pull the required models:
+**Pull the approved models.**
 
 ```bash
 docker compose -f docker-compose.prod.yml exec ollama ollama pull llama3:8b-instruct-q4_K_M
@@ -159,176 +161,194 @@ docker compose -f docker-compose.prod.yml exec ollama ollama pull llama3.1:8b-in
 docker compose -f docker-compose.prod.yml exec ollama ollama pull nomic-embed-text
 ```
 
-Important production notes:
+**Bootstrap the first admin.** See [Admin bootstrap](#admin-bootstrap).
 
-- The repo now enforces the approved q4 chat-model lineup:
-  - `llama3:8b-instruct-q4_K_M`
-  - `mistral:7b-instruct-q4_0`
-  - `llama3.1:8b-instruct-q4_K_M`
-- The default production chat model is `llama3:8b-instruct-q4_K_M`.
-- Internal TLS is required in the production-style stack.
-- Host data/log defaults are:
-  - MongoDB: `/mnt/nvme/mongodb`
-  - ChromaDB: `/mnt/nvme/chromadb`
-  - Ollama: `/mnt/nvme/ollama`
-  - Logs: `/mnt/hdd/logs`
-- Override those paths with env vars if your local production-rehearsal machine uses different mount points:
-  - `HOST_MONGO_DATA_DIR`
-  - `HOST_CHROMA_DATA_DIR`
-  - `HOST_OLLAMA_DATA_DIR`
-  - `HOST_LOG_DIR`
+**Required API environment variables.**
 
-### Recommended production-style env
+| Variable | Purpose |
+|---|---|
+| `MONGO_URL` | Mongo connection string (with TLS params) |
+| `MONGO_TLS_CA_FILE` | CA bundle for Mongo TLS |
+| `JWT_SECRET` | Session signing key (generate with `openssl rand -hex 32`) |
+| `OLLAMA_HOST` | Ollama base URL on the internal network |
+| `OLLAMA_MODEL` | Default chat model from the approved lineup |
+| `OLLAMA_ALLOWED_CHAT_MODELS` | Comma separated approved set |
+| `CHROMA_HOST` | Chroma base URL on the internal network |
+| `INTERNAL_TLS_MODE` | `required` in production, `disabled-explicit` in dev |
+| `LOG_DIR` | Where Pino writes structured JSON logs (default `/mnt/hdd/logs`) |
+| `LOG_LEVEL` | `info` for production, `debug` for diagnosis |
+| `MONGO_WIREDTIGER_CACHE_GB` | MongoDB cache size (default 12 on the target hardware) |
+| `ADMIN_WIPE_CONFIRMATION_CODE` | Code required to execute admin wipe |
 
-Set these in the API environment for production-style deployment:
+**Verify it's up.**
 
-- `MONGO_URL`
-- `MONGO_TLS_CA_FILE`
-- `JWT_SECRET`
-- `OLLAMA_HOST`
-- `OLLAMA_MODEL`
-- `OLLAMA_ALLOWED_CHAT_MODELS`
-- `CHROMA_HOST`
-- `INTERNAL_TLS_MODE=required`
-- `LOG_DIR=/mnt/hdd/logs`
-- `LOG_LEVEL=info`
-- `MONGO_WIREDTIGER_CACHE_GB=12`
+```bash
+curl --cacert ops/tls/ca/ca.crt https://localhost:4000/api/health
+docker compose -f docker-compose.prod.yml ps
+bash scripts/verify-production-artifacts.sh
+```
 
-## Admin Bootstrap
+If using the GPU overlay, also check:
 
-Admin accounts are not created through public registration.
+```bash
+docker compose -f docker-compose.prod.yml -f docker-compose.gpu.yml exec ollama ollama ps
+```
+
+---
+
+## Admin bootstrap
+
+Admin accounts are not created through public registration. They are bootstrapped from the command line by someone with shell access to the API service.
 
 ```bash
 cd apps/api
-cp .env.example .env
+cp .env.example .env     # if not already done
 ADMIN_BOOTSTRAP_USERNAME=admin \
 ADMIN_BOOTSTRAP_EMAIL=admin@example.com \
 ADMIN_BOOTSTRAP_PASSWORD=change-this-before-first-run \
 npm run bootstrap:admin
 ```
 
-Admin login page: `http://localhost:5173/login/admin`
+Admin login page: `http://localhost:5173/login/admin` in dev, or your configured domain in production.
 
-## Validation
+New instructor accounts go through an approval workflow: they register, an admin approves them in the admin panel, and only then can they log in. Trainees register themselves without needing approval.
 
-### Basic startup validation
+---
+
+## Validate
+
+**The dev stack is up.**
 
 ```bash
 curl http://localhost:4000/api/health
 ```
 
-Then open `http://localhost:5173`.
+Expect `"status": "ok"` and every service `"up"`. On Linux with hardware, the `gpu` and `cpu` blocks should show live telemetry.
 
-### Production-style validation
-
-```bash
-bash scripts/verify-production-artifacts.sh
-```
-
-For a running production-style stack:
+**The production stack is up.**
 
 ```bash
 curl --cacert ops/tls/ca/ca.crt https://localhost:4000/api/health
-docker compose -f docker-compose.prod.yml ps
+bash scripts/verify-production-artifacts.sh
 ```
 
-If using the GPU overlay:
+**The repo builds and tests cleanly.**
 
 ```bash
-docker compose -f docker-compose.prod.yml -f docker-compose.gpu.yml ps
-docker compose -f docker-compose.prod.yml -f docker-compose.gpu.yml exec ollama ollama ps
+cd apps/api && npm install && npm test && npm run build
+cd apps/web && npm install && npm test && npm run build
 ```
 
-### GPU validation
+**User flows smoke tested.** Walk these four by hand after setup:
 
-If using NVIDIA GPU acceleration for Ollama:
+1. Bootstrap admin, log in at `/login/admin`.
+2. Trainee registers, sends a chat message, sees streaming response.
+3. Instructor registers, admin approves in the admin panel, instructor logs in.
+4. Instructor uploads a PDF, waits for Ready status, asks a grounded question, verifies the citation footer names the source.
 
+---
+
+## Troubleshoot
+
+**Symptom: API logs show `sh: 1: tsx: not found`.**
+*Cause.* The API container's `node_modules` volume drifted out of sync with the image.
+*Fix.*
 ```bash
-docker compose -f docker-compose.prod.yml -f docker-compose.gpu.yml exec ollama ollama ps
+docker compose rm -sf api
+docker volume rm mazer_sd_project_api_node_modules
+docker compose up --build -d api
 ```
 
-### Repo checks
+**Symptom: `ollama pull` fails with "model not found".**
+*Cause.* The tag you are pulling does not exist upstream, usually because the `instruct` suffix was dropped.
+*Fix.* Use the exact tags from [Architecture](#architecture). `llama3:8b-q4_K_M` does not exist; use `llama3:8b-instruct-q4_K_M`.
 
-API:
+**Symptom: Chat responses appear but contain no citations.**
+*Cause.* Chroma has no embeddings for the expected document, or the instructor's retrieval threshold excluded all candidate chunks.
+*Fix.* Delete the document and upload it again; lower the `retrieval_threshold` on the instructor config if retrieval is too strict.
 
-```bash
-cd apps/api
-npm run test
-npm run build
-```
+**Symptom: `curl https://...` returns TLS errors on the production stack.**
+*Cause.* Internal TLS certs have not been generated, or the CA is not trusted.
+*Fix.* Run `bash scripts/generate-internal-certs.sh` and pass `--cacert ops/tls/ca/ca.crt` to curl.
 
-Web:
+**Symptom: 503 `database_unavailable` banner on chat load.**
+*Cause.* MongoDB is unreachable (network partition or crash).
+*Fix.* Check `docker compose ps`; restart Mongo if needed. The API recovers automatically once Mongo is back.
 
-```bash
-cd apps/web
-npm run build
-```
+**Symptom: 503 `thermal_capacity` on chat requests.**
+*Cause.* GPU above 83°C or CPU above 75°C.
+*Fix.* Wait five minutes. If persistent, check `/api/health` for current temps and investigate host cooling.
 
-### User-flow validation
+**Symptom: Chroma fails to start after `docker compose pull`.**
+*Cause.* Version mismatch between the pinned `chromadb/chroma:0.6.3` and existing on disk data from a different version.
+*Fix.* Either align the pin to match what is on disk, or wipe `/mnt/nvme/chromadb/` and ingest documents again.
 
-Recommended smoke-test flows:
+**Symptom: API startup aborts with "Model policy configuration is outside the approved lineup".**
+*Cause.* `OLLAMA_ALLOWED_CHAT_MODELS` or `OLLAMA_MODEL` contains a tag not in the three approved q4 variants, or a non q4 model slipped in.
+*Fix.* Set them to values from [Architecture](#architecture). The lineup is enforced deliberately; extending it requires a code change in `apps/api/src/runtime/modelPolicy.ts`.
 
-- admin bootstrap and admin login
-- trainee registration and chat
-- instructor registration, approval, and login
-- document upload, library visibility, and grounded chat
+**Symptom: "Model is warming up" banner appears on every first message.**
+*Cause.* Ollama unloads idle models after about 30 minutes of inactivity to free VRAM; the next request triggers a cold load.
+*Fix.* Not a bug: the banner disappears when the first token arrives. Keep the stack warm with a periodic health request if cold start latency is unacceptable.
 
-### RAG recovery
+---
 
-If a document shows `Ready` in the UI but chat is not grounding answers and `/api/documents/query` returns no chunks, delete that document and upload it again. That means the Mongo record exists but the Chroma vectors for that upload do not.
+## Security posture
 
-## Notes
+The application enforces a defined set of guarantees. Everything outside that set is the operator's responsibility. Both lists are explicit so there is no ambiguity about where the claim boundary sits.
 
-- RAG requires MongoDB, Ollama, and Chroma to all be available.
-- `nomic-embed-text` must be pulled or document ingestion/retrieval will not work correctly.
-- `docker-compose.gpu.yml` is for NVIDIA Docker hosts. It is not a universal AMD/Intel/Apple GPU configuration.
-- The default [docker-compose.yml](/Users/shivaganeshnagamandla/GitHub_Projects/Mazer_SD_Project/docker-compose.yml) is the local developer stack.
-- The production-style stack is [docker-compose.prod.yml](/Users/shivaganeshnagamandla/GitHub_Projects/Mazer_SD_Project/docker-compose.prod.yml).
-- You can run the production-style stack locally for rehearsal if Docker works on your machine, but the GPU overlay only applies to compatible NVIDIA hosts.
+**What the application enforces.**
+
+- Passwords are stored as bcrypt hashes with cost factor 12.
+- Sessions are signed JWTs that expire after 24 hours, delivered as HttpOnly cookies.
+- Transport between services uses TLS 1.3 via stunnel on every hop in the production stack.
+- Authorization is checked on every protected route by role (trainee, instructor, admin).
+- Model policy is enforced at startup: any tag outside the three approved q4 variants fails fast.
+- Admin secure wipe overwrites message and conversation fields three times with random data, then calls MongoDB `compact` to release freed blocks, then drops the Chroma collection for embeddings.
+- Thermal gating polls GPU and CPU every 30 seconds and rejects new requests above 83°C (GPU) or 75°C (CPU).
+- Session capacity caps at twelve concurrent chats and queues beyond that to prevent VRAM overflow.
+- Every request body is validated against a Zod schema at the route boundary.
+- Every internal URL and outbound call is restricted to the Docker network.
+
+**What the operator owns.**
+
+- Encryption at rest: configure LUKS on `/mnt/nvme` at the host OS. The application does not add field level encryption.
+- Network isolation: the Docker network is bridged internally, but the host must have no internet gateway in production.
+- OS hardening: CPU cooling headroom, ext4 filesystem choice, kernel updates, SSH lockdown.
+- Forensic grade wipe: the application overwrites fields in place, not disk sectors. Full forensic erasure requires `shred` on `/mnt/nvme/*` on the host plus `fstrim` on the volume.
+- Physical security of the host, the drives, and the key material under `ops/tls/`.
+
+---
 
 ## Teardown
 
-### Local testing teardown
-
-Stop the developer stack, keep data:
+**Local stack.**
 
 ```bash
-docker compose down
+docker compose down           # stop, keep data
+docker compose down -v        # stop and delete Docker volumes (Mongo, Chroma, Ollama models)
 ```
 
-Stop the developer stack and delete Docker volumes:
-
-```bash
-docker compose down -v
-```
-
-`down -v` deletes:
-
-- MongoDB data volume
-- ChromaDB data volume
-- Ollama model/data volume
-
-If local dev servers are running, stop them with `Ctrl+C`.
-
-### Production-style teardown
-
-Stop the production-style stack, keep host data:
+**Production stack.**
 
 ```bash
 docker compose -f docker-compose.prod.yml down
-```
-
-Stop the production-style stack with GPU overlay, keep host data:
-
-```bash
+# With GPU overlay:
 docker compose -f docker-compose.prod.yml -f docker-compose.gpu.yml down
 ```
 
-This does not delete host data under the configured bind mounts such as:
+`down` leaves host bind mounts intact. For a full cleanup of production data:
 
-- `/mnt/nvme/mongodb`
-- `/mnt/nvme/chromadb`
-- `/mnt/nvme/ollama`
-- `/mnt/hdd/logs`
+```bash
+sudo rm -rf /mnt/nvme/mongodb /mnt/nvme/chromadb /mnt/nvme/ollama
+sudo rm -rf /mnt/hdd/logs
+```
 
-If you want a full cleanup of production-style local rehearsal data, remove those host directories manually on the machine you used for the rehearsal.
+For forensic grade removal, shred the files first:
+
+```bash
+sudo shred -u /mnt/nvme/mongodb/**
+sudo shred -u /mnt/nvme/chromadb/**
+sudo shred -u /mnt/nvme/ollama/**
+sudo fstrim /mnt/nvme
+```
