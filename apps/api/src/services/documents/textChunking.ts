@@ -17,9 +17,9 @@ type TokenWithContext = {
   section_header: string | null;
 };
 
-export const CHUNK_TOKEN_SIZE = 512;
-export const CHUNK_TOKEN_OVERLAP = 64;
-export const CHUNK_MAX_CHAR_LENGTH = 7000;
+export const CHUNK_TOKEN_SIZE = 320;
+export const CHUNK_TOKEN_OVERLAP = 48;
+export const CHUNK_MAX_CHAR_LENGTH = 2400;
 
 function normalizeWhitespace(text: string) {
   return text.replace(/\r/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();

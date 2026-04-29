@@ -40,7 +40,7 @@ healthRouter.get("/", async (_req, res) => {
       mongoose.connection.readyState === 1 ? ("up" as const) : ("down" as const)
     ),
     // ChromaDB: HTTP ping
-    pingService(`${CHROMA_HOST}/api/v2/healthcheck`),
+    pingService(`${CHROMA_HOST}/api/v2/heartbeat`),
     // Ollama: HTTP ping
     pingService(`${OLLAMA_HOST}/api/tags`),
   ]);

@@ -181,7 +181,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "python -c \"import sys, urllib.request; response = urllib.request.urlopen('http://127.0.0.1:8001/api/v2/healthcheck', timeout=5); sys.exit(0 if response.status == 200 else 1)\"",
+          "python -c \"import sys, urllib.request; response = urllib.request.urlopen('http://127.0.0.1:8001/api/v2/heartbeat', timeout=5); sys.exit(0 if response.status == 200 else 1)\"",
         ]
       interval: 30s
       timeout: 10s

@@ -61,6 +61,34 @@ function sanitizeMetadataRecord(metadata: Record<string, unknown>) {
   return sanitizeMetadataValue(metadata) as Record<string, unknown>;
 }
 
+function invalidateCollectionCache() {
+  cachedCollectionId = null;
+}
+
+function isCollectionNotFoundError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message;
+  return (
+    message.includes("chroma_request_failed_404")
+    || message.includes("chroma_delete_failed_404")
+    || message.includes("does not exist")
+    || message.includes("InvalidCollection")
+  );
+}
+
+async function getCollectionByName(): Promise<ChromaCollection | null> {
+  const response = await fetch(
+    `${CHROMA_BASE_PATH}/collections/${encodeURIComponent(CHROMA_COLLECTION)}`,
+    { method: "GET", headers: CHROMA_HEADERS }
+  );
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`chroma_request_failed_${response.status}:${body}`);
+  }
+  return (await response.json()) as ChromaCollection;
+}
+
 async function ensureCollection(): Promise<ChromaCollection> {
   if (cachedCollectionId) {
     return {
@@ -69,7 +97,16 @@ async function ensureCollection(): Promise<ChromaCollection> {
     };
   }
 
-  const response = await fetch(`${CHROMA_BASE_PATH}/collections`, {
+  // Try GET by name first. Robust across Chroma versions where
+  // `get_or_create: true` body flag is not honored consistently.
+  const existing = await getCollectionByName();
+  if (existing) {
+    cachedCollectionId = existing.id;
+    return existing;
+  }
+
+  // Not found — create it.
+  const createResponse = await fetch(`${CHROMA_BASE_PATH}/collections`, {
     method: "POST",
     headers: CHROMA_HEADERS,
     body: JSON.stringify({
@@ -78,45 +115,72 @@ async function ensureCollection(): Promise<ChromaCollection> {
     }),
   });
 
-  const collection = await parseJsonResponse<ChromaCollection>(response);
-  cachedCollectionId = collection.id;
-  return collection;
+  if (createResponse.ok) {
+    const collection = (await createResponse.json()) as ChromaCollection;
+    cachedCollectionId = collection.id;
+    return collection;
+  }
+
+  // Race: someone created it between our GET and POST. Re-fetch by name.
+  if (createResponse.status === 409) {
+    const retry = await getCollectionByName();
+    if (retry) {
+      cachedCollectionId = retry.id;
+      return retry;
+    }
+  }
+
+  const body = await createResponse.text();
+  throw new Error(`chroma_request_failed_${createResponse.status}:${body}`);
+}
+
+async function withCollectionRetry<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isCollectionNotFoundError(error)) throw error;
+    // Cached collection ID points to a deleted collection. Invalidate and retry once.
+    invalidateCollectionCache();
+    return await operation();
+  }
 }
 
 export async function addDocumentsToChroma(records: ChromaDocumentRecord[]) {
   if (records.length === 0) return;
-  const collection = await ensureCollection();
-
-  const response = await fetch(`${CHROMA_BASE_PATH}/collections/${collection.id}/add`, {
-    method: "POST",
-    headers: CHROMA_HEADERS,
-    body: JSON.stringify({
-      ids: records.map((record) => record.id),
-      documents: records.map((record) => record.document),
-      embeddings: records.map((record) => record.embedding),
-      metadatas: records.map((record) => sanitizeMetadataRecord(record.metadata)),
-    }),
+  await withCollectionRetry(async () => {
+    const collection = await ensureCollection();
+    const response = await fetch(`${CHROMA_BASE_PATH}/collections/${collection.id}/add`, {
+      method: "POST",
+      headers: CHROMA_HEADERS,
+      body: JSON.stringify({
+        ids: records.map((record) => record.id),
+        documents: records.map((record) => record.document),
+        embeddings: records.map((record) => record.embedding),
+        metadatas: records.map((record) => sanitizeMetadataRecord(record.metadata)),
+      }),
+    });
+    await parseJsonResponse<unknown>(response);
   });
-
-  await parseJsonResponse<unknown>(response);
 }
 
 export async function deleteDocumentFromChroma(args: { documentId: string }) {
-  const collection = await ensureCollection();
-  const response = await fetch(`${CHROMA_BASE_PATH}/collections/${collection.id}/delete`, {
-    method: "POST",
-    headers: CHROMA_HEADERS,
-    body: JSON.stringify({
-      where: {
-        document_id: args.documentId,
-      },
-    }),
-  });
+  await withCollectionRetry(async () => {
+    const collection = await ensureCollection();
+    const response = await fetch(`${CHROMA_BASE_PATH}/collections/${collection.id}/delete`, {
+      method: "POST",
+      headers: CHROMA_HEADERS,
+      body: JSON.stringify({
+        where: {
+          document_id: args.documentId,
+        },
+      }),
+    });
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`chroma_delete_failed_${response.status}:${body}`);
-  }
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`chroma_delete_failed_${response.status}:${body}`);
+    }
+  });
 }
 
 export async function queryChroma(args: {
@@ -124,36 +188,38 @@ export async function queryChroma(args: {
   topK: number;
   where?: Record<string, unknown>;
 }): Promise<ChromaQueryResult[]> {
-  const collection = await ensureCollection();
-  const response = await fetch(`${CHROMA_BASE_PATH}/collections/${collection.id}/query`, {
-    method: "POST",
-    headers: CHROMA_HEADERS,
-    body: JSON.stringify({
-      query_embeddings: [args.queryEmbedding],
-      n_results: args.topK,
-      where: args.where,
-      include: ["documents", "metadatas", "distances"],
-    }),
+  return withCollectionRetry(async () => {
+    const collection = await ensureCollection();
+    const response = await fetch(`${CHROMA_BASE_PATH}/collections/${collection.id}/query`, {
+      method: "POST",
+      headers: CHROMA_HEADERS,
+      body: JSON.stringify({
+        query_embeddings: [args.queryEmbedding],
+        n_results: args.topK,
+        where: args.where,
+        include: ["documents", "metadatas", "distances"],
+      }),
+    });
+
+    const payload = await parseJsonResponse<{
+      ids?: string[][];
+      documents?: string[][];
+      metadatas?: Record<string, unknown>[][];
+      distances?: number[][];
+    }>(response);
+
+    const ids = payload.ids?.[0] ?? [];
+    const documents = payload.documents?.[0] ?? [];
+    const metadatas = payload.metadatas?.[0] ?? [];
+    const distances = payload.distances?.[0] ?? [];
+
+    return ids.map((id, index) => ({
+      id,
+      document: documents[index] ?? "",
+      metadata: metadatas[index] ?? {},
+      distance: typeof distances[index] === "number" ? distances[index] : null,
+    }));
   });
-
-  const payload = await parseJsonResponse<{
-    ids?: string[][];
-    documents?: string[][];
-    metadatas?: Record<string, unknown>[][];
-    distances?: number[][];
-  }>(response);
-
-  const ids = payload.ids?.[0] ?? [];
-  const documents = payload.documents?.[0] ?? [];
-  const metadatas = payload.metadatas?.[0] ?? [];
-  const distances = payload.distances?.[0] ?? [];
-
-  return ids.map((id, index) => ({
-    id,
-    document: documents[index] ?? "",
-    metadata: metadatas[index] ?? {},
-    distance: typeof distances[index] === "number" ? distances[index] : null,
-  }));
 }
 
 export async function resetChromaCollection() {
@@ -176,32 +242,34 @@ export async function searchChromaByDocumentText(args: {
   const needle = args.contains.trim();
   if (!needle) return [];
 
-  const collection = await ensureCollection();
-  const response = await fetch(`${CHROMA_BASE_PATH}/collections/${collection.id}/get`, {
-    method: "POST",
-    headers: CHROMA_HEADERS,
-    body: JSON.stringify({
-      where: args.where,
-      where_document: { $contains: needle },
-      include: ["documents", "metadatas"],
-      limit: args.limit,
-    }),
+  return withCollectionRetry(async () => {
+    const collection = await ensureCollection();
+    const response = await fetch(`${CHROMA_BASE_PATH}/collections/${collection.id}/get`, {
+      method: "POST",
+      headers: CHROMA_HEADERS,
+      body: JSON.stringify({
+        where: args.where,
+        where_document: { $contains: needle },
+        include: ["documents", "metadatas"],
+        limit: args.limit,
+      }),
+    });
+
+    const payload = await parseJsonResponse<{
+      ids?: string[];
+      documents?: string[];
+      metadatas?: Record<string, unknown>[];
+    }>(response);
+
+    const ids = payload.ids ?? [];
+    const documents = payload.documents ?? [];
+    const metadatas = payload.metadatas ?? [];
+
+    return ids.map((id, index) => ({
+      id,
+      document: documents[index] ?? "",
+      metadata: metadatas[index] ?? {},
+      distance: null,
+    }));
   });
-
-  const payload = await parseJsonResponse<{
-    ids?: string[];
-    documents?: string[];
-    metadatas?: Record<string, unknown>[];
-  }>(response);
-
-  const ids = payload.ids ?? [];
-  const documents = payload.documents ?? [];
-  const metadatas = payload.metadatas ?? [];
-
-  return ids.map((id, index) => ({
-    id,
-    document: documents[index] ?? "",
-    metadata: metadatas[index] ?? {},
-    distance: null,
-  }));
 }
