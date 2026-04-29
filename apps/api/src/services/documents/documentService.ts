@@ -406,50 +406,39 @@ function toSimilarityScore(distance: number | null) {
 }
 
 const QUERY_STOP_WORDS = new Set([
-  "a",
-  "an",
-  "and",
-  "across",
-  "all",
-  "are",
-  "based",
-  "be",
-  "both",
-  "by",
-  "compare",
-  "define",
-  "describe",
-  "does",
-  "document",
-  "documents",
-  "explain",
-  "for",
-  "from",
-  "give",
-  "how",
-  "in",
-  "is",
-  "it",
-  "its",
-  "me",
-  "of",
-  "on",
-  "so",
-  "sources",
-  "summarize",
-  "tell",
-  "that",
-  "the",
-  "their",
-  "these",
-  "this",
-  "those",
-  "to",
-  "uploaded",
-  "using",
-  "what",
-  "which",
-  "with",
+  // articles, conjunctions, prepositions, common particles
+  "a", "an", "and", "across", "all", "are", "as", "at", "based", "be",
+  "been", "being", "both", "but", "by", "can", "could", "do", "did",
+  "for", "from", "had", "has", "have", "in", "into", "is", "it", "its",
+  "may", "me", "might", "must", "of", "on", "or", "out", "over", "should",
+  "so", "than", "that", "the", "their", "them", "then", "there", "these",
+  "this", "those", "to", "up", "was", "we", "were", "what", "when",
+  "where", "which", "while", "who", "whom", "why", "will", "with",
+  "would",
+  // common question / instruction verbs that signal intent without content
+  "compare", "define", "describe", "explain", "give", "how", "list",
+  "show", "summarize", "tell", "ask", "say",
+  // self-references that flag the corpus rather than the topic
+  "document", "documents", "uploaded", "using", "sources", "source",
+  // contractions (apostrophes get stripped during normalization)
+  "whats", "hows", "wheres", "whens", "whys", "whos", "youre", "youd",
+  "youll", "im", "ive", "ill", "id", "isnt", "arent", "wasnt", "werent",
+  "dont", "doesnt", "didnt", "cant", "couldnt", "shouldnt", "wouldnt",
+  // greetings, acknowledgments, casual phrasing — these are not corpus
+  // content and must not seed lexical match
+  "hi", "hello", "hey", "yo", "sup", "howdy", "greetings",
+  "ok", "okay", "yes", "no", "yeah", "nope", "sure", "alright",
+  "thanks", "thank", "ty", "thx", "appreciate",
+  "cool", "nice", "got", "understood", "gotcha", "awesome", "great",
+  "good", "bad", "fine", "well", "test", "ping",
+  // pronouns and self / other references
+  "i", "you", "your", "yours", "yourself", "my", "mine", "our", "ours",
+  "us", "they", "them",
+  // common social-context words and short adverbs
+  "doing", "going", "things", "stuff", "please", "now", "today",
+  "yesterday", "tomorrow", "anyway", "really", "very",
+  // morning / evening / time-of-day greetings
+  "morning", "afternoon", "evening", "night", "day",
 ]);
 
 const QUERY_WEAK_TERMS = new Set([
@@ -595,6 +584,43 @@ type RerankSignals = {
   score: number;
 };
 
+/**
+ * Detect appendix or glossary section headers. Glossary entries embed
+ * tightly to definitional queries and tend to dominate results, even when
+ * the textbook body has the more useful explanation. We dock these in the
+ * rerank so body content wins ties.
+ *
+ * Patterns covered:
+ *   - "Appendix", "Glossary", "Index", "References", "Bibliography"
+ *   - Lettered appendix entries like "A-12", "B-4"
+ *   - Numbered glossary entries that are short single-term definitions
+ *     (e.g. "2. Repeater") — caught by checking for a leading digit-period
+ *     prefix on a section header that is otherwise a single capitalized term.
+ */
+function isAppendixOrGlossaryHeader(sectionHeader: string): boolean {
+  if (!sectionHeader) return false;
+  const trimmed = sectionHeader.trim();
+  if (!trimmed) return false;
+  const upper = trimmed.toUpperCase();
+  if (
+    upper.startsWith("APPENDIX")
+    || upper.startsWith("GLOSSARY")
+    || upper.startsWith("INDEX")
+    || upper.startsWith("REFERENCES")
+    || upper.startsWith("BIBLIOGRAPHY")
+  ) {
+    return true;
+  }
+  // Lettered appendix entries: "A-12", "B-4", "C-1".
+  if (/^[A-Z]-\d{1,3}\b/.test(trimmed)) return true;
+  // Glossary entries the chunker captured as headers because they begin
+  // with "N. Term" but continue with the full definition. Real chapter or
+  // section titles are concise; anything past 60 characters is almost
+  // certainly a definition that bled into the section_header field.
+  if (trimmed.length > 60) return true;
+  return false;
+}
+
 function computeRerankSignals(
   contentTerms: string[],
   contentPhrase: string,
@@ -638,6 +664,15 @@ function computeRerankSignals(
     if (pageNumber !== null && pageNumber <= 5) {
       score += 0.15;
     }
+  }
+
+  // Penalize appendix / glossary chunks. Glossary entries embed tightly to
+  // definitional queries ("what is X") and tend to outrank the body content
+  // that explains the concept in context. Detect them by section header
+  // patterns (Appendix, Glossary, "A-12" style appendix entries) and dock
+  // the score so the body wins on ties.
+  if (isAppendixOrGlossaryHeader(sectionHeader)) {
+    score -= 0.4;
   }
 
   return {
@@ -814,7 +849,15 @@ export async function queryKnowledgeBase(args: KnowledgeBaseQueryArgs) {
     .filter(({ result, signals }) => {
       if (signals.exactPhraseMatch) return true;
       if (signals.lexicalMatch) {
-        return meetsThreshold(result, retrievalThreshold) || signals.tokenCoverage >= 0.5;
+        // Lexical match alone does not bypass the similarity gate. Allow the
+        // bypass only when the query carries multiple substantive terms and
+        // the chunk covers a meaningful share of them — this prevents single
+        // common tokens (e.g. "up", "is", "hi") from ushering irrelevant
+        // chunks past the threshold during casual prompts.
+        return (
+          meetsThreshold(result, retrievalThreshold)
+          || (contentTerms.length >= 2 && signals.tokenCoverage >= 0.5)
+        );
       }
       return meetsThreshold(result, retrievalThreshold);
     })

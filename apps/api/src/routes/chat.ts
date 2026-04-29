@@ -289,7 +289,7 @@ router.post("/chat", requireAuth, capacityGate, thermalGate, async (req, res) =>
       system,
       model: requestedModel,
       enable_rag = true,
-      max_rag_chunks = 3,
+      max_rag_chunks = 5,
       stream = false,
     } = parsed.data;
     const model = resolveChatModel(requestedModel);

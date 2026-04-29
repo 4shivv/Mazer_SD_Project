@@ -57,6 +57,40 @@ async function getPdfPageCount(inputPath: string): Promise<number | null> {
   }
 }
 
+/**
+ * Build a map of physical PDF page (1-indexed) to the printed page label
+ * embedded in the PDF metadata, when the label parses as a number.
+ *
+ * Most textbooks have unnumbered front matter (cover, half-title) and
+ * roman-numeral preface pages before the body restarts at "1". The body's
+ * arabic labels are the ones trainees expect to see in citations. This
+ * function extracts that mapping via `pdfinfo -listpagelabels`. Returns
+ * null when the PDF carries no useful labels or the tool is missing.
+ */
+async function getPdfPageLabelMap(inputPath: string): Promise<Map<number, number> | null> {
+  try {
+    const { stdout } = await execFileAsync("pdfinfo", ["-listpagelabels", inputPath]);
+    const labels = new Map<number, number>();
+    for (const line of stdout.split("\n")) {
+      const match = line.match(/^Page\s+(\d+):\s*(.+?)\s*$/);
+      if (!match) continue;
+      const physical = Number(match[1]);
+      const labelText = match[2].trim();
+      const labelNumber = Number(labelText);
+      if (
+        Number.isFinite(physical)
+        && Number.isFinite(labelNumber)
+        && labelText.length > 0
+      ) {
+        labels.set(physical, labelNumber);
+      }
+    }
+    return labels.size > 0 ? labels : null;
+  } catch {
+    return null;
+  }
+}
+
 async function extractPdfTextWithCli(buffer: Buffer): Promise<ParsedDocumentText> {
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), "mazer-pdf-"));
   const inputPath = path.join(tmpDir, "input.pdf");
@@ -70,19 +104,24 @@ async function extractPdfTextWithCli(buffer: Buffer): Promise<ParsedDocumentText
     // form-feed characters, which mis-aligns on PDFs with quirky layouts.
     const pageCount = await getPdfPageCount(inputPath);
     if (pageCount && pageCount > 0) {
+      // When the PDF carries printed page labels (e.g., the body of a
+      // textbook starts at PDF physical page 14 but is labeled "1"), prefer
+      // the printed label so citations match what the reader sees.
+      const labelMap = await getPdfPageLabelMap(inputPath);
       const pages: Array<{ page_number: number; text: string }> = [];
-      for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+      for (let physicalPage = 1; physicalPage <= pageCount; physicalPage += 1) {
         try {
           const { stdout } = await execFileAsync("pdftotext", [
             "-layout",
-            "-f", String(pageNumber),
-            "-l", String(pageNumber),
+            "-f", String(physicalPage),
+            "-l", String(physicalPage),
             inputPath,
             "-",
           ]);
           const trimmed = stdout.trim();
           if (trimmed.length > 0) {
-            pages.push({ page_number: pageNumber, text: trimmed });
+            const printedPage = labelMap?.get(physicalPage) ?? physicalPage;
+            pages.push({ page_number: printedPage, text: trimmed });
           }
         } catch {
           // Skip a single bad page; do not fail the whole extraction.

@@ -33,6 +33,12 @@ describe("extractDocumentText", () => {
   it("uses per-page pdftotext extraction when pdfinfo reports a page count", async () => {
     execFileMock.mockImplementation((file: string, args: string[], callback: Function) => {
       if (file === "pdfinfo") {
+        // First pdfinfo call: get page count (no flags). Second: -listpagelabels.
+        if (args.includes("-listpagelabels")) {
+          // No printed page labels present → falls back to physical page numbers.
+          callback(null, { stdout: "", stderr: "" });
+          return;
+        }
         callback(null, { stdout: "Pages: 2\n", stderr: "" });
         return;
       }
@@ -63,8 +69,52 @@ describe("extractDocumentText", () => {
         { page_number: 2, text: "Page two" },
       ],
     });
-    // 1 pdfinfo + 1 pdftotext per page = 3 calls for a 2-page PDF.
-    expect(execFileMock).toHaveBeenCalledTimes(3);
+    // 1 pdfinfo (count) + 1 pdfinfo (labels) + 1 pdftotext per page = 4 calls.
+    expect(execFileMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("applies printed page labels from pdfinfo when present", async () => {
+    execFileMock.mockImplementation((file: string, args: string[], callback: Function) => {
+      if (file === "pdfinfo") {
+        if (args.includes("-listpagelabels")) {
+          // Common textbook pattern: 1 unnumbered cover, then printed pages.
+          callback(null, {
+            stdout: "Page 1: \nPage 2: 1\nPage 3: 2\n",
+            stderr: "",
+          });
+          return;
+        }
+        callback(null, { stdout: "Pages: 3\n", stderr: "" });
+        return;
+      }
+      if (file === "pdftotext") {
+        const pageFlagIndex = args.indexOf("-f");
+        const pageNumber = pageFlagIndex >= 0 ? Number(args[pageFlagIndex + 1]) : null;
+        const stdout = pageNumber === 1
+          ? "Cover"
+          : pageNumber === 2
+            ? "Body page one"
+            : pageNumber === 3
+              ? "Body page two"
+              : "";
+        callback(null, { stdout, stderr: "" });
+        return;
+      }
+      callback(new Error(`unexpected command: ${file}`));
+    });
+
+    const parsed = await extractDocumentText({
+      filename: "textbook.pdf",
+      buffer: Buffer.from("%PDF-1.7"),
+    });
+
+    // Physical page 1 has no numeric label → falls back to physical 1.
+    // Physical pages 2 and 3 carry labels "1" and "2" → printed numbers used.
+    expect(parsed.pages).toEqual([
+      { page_number: 1, text: "Cover" },
+      { page_number: 1, text: "Body page one" },
+      { page_number: 2, text: "Body page two" },
+    ]);
   });
 
   it("falls back to whole-file pdftotext when pdfinfo is unavailable", async () => {
