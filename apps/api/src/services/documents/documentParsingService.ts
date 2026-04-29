@@ -45,6 +45,18 @@ function hasUsableExtractedText(parsed: ParsedDocumentText) {
   return parsed.pages?.some((page) => page.text.trim().length > 0) ?? false;
 }
 
+async function getPdfPageCount(inputPath: string): Promise<number | null> {
+  try {
+    const { stdout } = await execFileAsync("pdfinfo", [inputPath]);
+    const match = stdout.match(/Pages:\s*(\d+)/);
+    if (!match) return null;
+    const count = Number(match[1]);
+    return Number.isFinite(count) && count > 0 ? count : null;
+  } catch {
+    return null;
+  }
+}
+
 async function extractPdfTextWithCli(buffer: Buffer): Promise<ParsedDocumentText> {
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), "mazer-pdf-"));
   const inputPath = path.join(tmpDir, "input.pdf");
@@ -52,6 +64,37 @@ async function extractPdfTextWithCli(buffer: Buffer): Promise<ParsedDocumentText
 
   try {
     await writeFile(inputPath, buffer);
+
+    // Try per-page extraction first using pdfinfo + pdftotext -f -l. This makes
+    // page_number authoritative from the PDF rather than inferred by counting
+    // form-feed characters, which mis-aligns on PDFs with quirky layouts.
+    const pageCount = await getPdfPageCount(inputPath);
+    if (pageCount && pageCount > 0) {
+      const pages: Array<{ page_number: number; text: string }> = [];
+      for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+        try {
+          const { stdout } = await execFileAsync("pdftotext", [
+            "-layout",
+            "-f", String(pageNumber),
+            "-l", String(pageNumber),
+            inputPath,
+            "-",
+          ]);
+          const trimmed = stdout.trim();
+          if (trimmed.length > 0) {
+            pages.push({ page_number: pageNumber, text: trimmed });
+          }
+        } catch {
+          // Skip a single bad page; do not fail the whole extraction.
+        }
+      }
+      if (pages.length > 0) {
+        return buildParsedDocument(pages, pageCount);
+      }
+    }
+
+    // Fallback: original whole-file extraction split by form feed. Used when
+    // pdfinfo is unavailable or per-page extraction yielded nothing.
     await execFileAsync("pdftotext", ["-layout", inputPath, outputPath]);
     const rawText = await readFile(outputPath, "utf8");
     return buildParsedDocument(normalizeParsedPages(rawText));

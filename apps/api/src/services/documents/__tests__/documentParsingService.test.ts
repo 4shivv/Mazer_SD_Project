@@ -30,8 +30,49 @@ describe("extractDocumentText", () => {
     });
   });
 
-  it("uses pdftotext output when embedded pdf text is available", async () => {
+  it("uses per-page pdftotext extraction when pdfinfo reports a page count", async () => {
     execFileMock.mockImplementation((file: string, args: string[], callback: Function) => {
+      if (file === "pdfinfo") {
+        callback(null, { stdout: "Pages: 2\n", stderr: "" });
+        return;
+      }
+      if (file === "pdftotext") {
+        const pageFlagIndex = args.indexOf("-f");
+        const pageNumber = pageFlagIndex >= 0 ? Number(args[pageFlagIndex + 1]) : null;
+        const stdout = pageNumber === 1
+          ? "Page one"
+          : pageNumber === 2
+            ? "Page two"
+            : "";
+        callback(null, { stdout, stderr: "" });
+        return;
+      }
+      callback(new Error(`unexpected command: ${file}`));
+    });
+
+    const parsed = await extractDocumentText({
+      filename: "manual.pdf",
+      buffer: Buffer.from("%PDF-1.7"),
+    });
+
+    expect(parsed).toEqual({
+      text: "Page one\n\nPage two",
+      pageCount: 2,
+      pages: [
+        { page_number: 1, text: "Page one" },
+        { page_number: 2, text: "Page two" },
+      ],
+    });
+    // 1 pdfinfo + 1 pdftotext per page = 3 calls for a 2-page PDF.
+    expect(execFileMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("falls back to whole-file pdftotext when pdfinfo is unavailable", async () => {
+    execFileMock.mockImplementation((file: string, args: string[], callback: Function) => {
+      if (file === "pdfinfo") {
+        callback(new Error("pdfinfo missing"));
+        return;
+      }
       if (file === "pdftotext") {
         const outputPath = args[2];
         writeFile(outputPath, "Page one\fPage two")
@@ -55,7 +96,6 @@ describe("extractDocumentText", () => {
         { page_number: 2, text: "Page two" },
       ],
     });
-    expect(execFileMock).toHaveBeenCalledTimes(1);
   });
 
   it("falls back to OCR when pdftotext finds no usable text", async () => {

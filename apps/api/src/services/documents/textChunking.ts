@@ -21,6 +21,28 @@ export const CHUNK_TOKEN_SIZE = 320;
 export const CHUNK_TOKEN_OVERLAP = 48;
 export const CHUNK_MAX_CHAR_LENGTH = 2400;
 
+/**
+ * Pick the most frequent non-null value from a list. Used to assign chunk
+ * metadata (page_number, section_header) based on where most of the chunk's
+ * content lives, not where the chunk happens to start.
+ */
+function pickDominant<T extends string | number>(values: Array<T | null>): T | null {
+  const counts = new Map<T, number>();
+  for (const value of values) {
+    if (value === null || value === undefined) continue;
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  let bestValue: T | null = null;
+  let bestCount = 0;
+  for (const [value, count] of counts) {
+    if (count > bestCount) {
+      bestCount = count;
+      bestValue = value;
+    }
+  }
+  return bestValue;
+}
+
 function normalizeWhitespace(text: string) {
   return text.replace(/\r/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
@@ -114,8 +136,8 @@ export function chunkTextForEmbedding(input: string | { text: string; pages?: Ch
       index: chunks.length,
       text: chunkText,
       token_count: slice.length,
-      section_header: slice.find((token) => token.section_header)?.section_header ?? null,
-      page_number: slice.find((token) => token.page_number !== null)?.page_number ?? null,
+      section_header: pickDominant(slice.map((token) => token.section_header)),
+      page_number: pickDominant(slice.map((token) => token.page_number)),
     });
 
     if (start + CHUNK_TOKEN_SIZE >= tokens.length) break;
